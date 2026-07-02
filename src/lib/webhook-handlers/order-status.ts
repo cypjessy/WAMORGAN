@@ -1,28 +1,24 @@
 // ─── Order Status Handler ────────────────────────────────────────────────────
-// Handles order status inquiries via WhatsApp, adapted from WhatsApp WAMORGAN
-// for WAMORGAN's in-memory data model.
-//
-// ⚡ No Firebase dependency — uses static mock data.
+// Handles order status inquiries via WhatsApp and order cancellation requests.
+// Adapted from WhatsApp WAMORGAN pattern.
+// Uses real Firestore data via deps.
 
 export interface OrderStatusDeps {
   sendMessage: (tenantId: string, phone: string, message: string) => Promise<void>;
   startTyping?: (tenantId: string, phone: string) => Promise<void>;
   stopTyping?: (tenantId: string, phone: string) => Promise<void>;
   setFlowState?: (tenantId: string, phone: string, state: any) => Promise<void>;
+  clearFlowState?: (tenantId: string, phone: string) => Promise<void>;
   getOrders?: (customerPhone?: string) => Promise<any[]>;
+  createCancellationRequest?: (data: {
+    orderId: string;
+    orderNumber: string;
+    customerPhone: string;
+    customerName: string;
+    reason: string;
+  }) => Promise<void>;
+  updateOrderStatus?: (orderId: string, status: string) => Promise<void>;
 }
-
-// ─── Mock Orders ─────────────────────────────────────────────────────────────
-
-const MOCK_ORDERS = [
-  { orderNumber: 'ORD-2841', total: 185.00, status: 'pending', products: [{ name: 'Nike Air Max 270', quantity: 1, price: 185 }], createdAt: new Date('2026-06-29'), deliveryAddress: 'CBD Branch (Pickup)', paymentMethod: 'M-Pesa', paymentStatus: 'unpaid', customerPhone: '254712345678' },
-  { orderNumber: 'ORD-2840', total: 399.00, status: 'processing', products: [{ name: 'Apple Watch Series 9', quantity: 1, price: 399 }], createdAt: new Date('2026-06-29'), deliveryAddress: '456 Oak Ave, Los Angeles', paymentMethod: 'Credit Card', paymentStatus: 'paid', customerPhone: '254712345678' },
-  { orderNumber: 'ORD-2839', total: 640.32, status: 'pending', products: [{ name: 'Sony WH-1000XM5', quantity: 2, price: 348 }], createdAt: new Date('2026-06-29'), deliveryAddress: 'Westlands Mall (Pickup)', paymentMethod: 'Bank Transfer', paymentStatus: 'unpaid', customerPhone: '254712345678' },
-  { orderNumber: 'ORD-2838', total: 1199.00, status: 'completed', products: [{ name: 'iPhone 15 Pro Max', quantity: 1, price: 1199 }], createdAt: new Date('2026-06-28'), deliveryAddress: '321 Elm St, Miami', paymentMethod: 'Credit Card', paymentStatus: 'paid', customerPhone: '254798765432' },
-  { orderNumber: 'ORD-2837', total: 249.00, status: 'processing', products: [{ name: 'Leather Jacket', quantity: 1, price: 249 }], createdAt: new Date('2026-06-28'), deliveryAddress: 'Nyali Centre (Pickup)', paymentMethod: 'M-Pesa', paymentStatus: 'paid', customerPhone: '254712345678' },
-];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getStatusEmoji(status: string): string {
   const map: Record<string, string> = {
@@ -37,6 +33,11 @@ function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).replace(/_/g, ' ');
 }
 
+export function isEligibleForCancellation(status: string): boolean {
+  const ineligible = ['shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled', 'refunded', 'cancellation_requested'];
+  return !ineligible.includes(status?.toLowerCase());
+}
+
 // ─── Main Handlers ──────────────────────────────────────────────────────────
 
 export async function handleOrderStatusLookup(
@@ -49,12 +50,9 @@ export async function handleOrderStatusLookup(
 
   try {
     const input = query.trim().toUpperCase();
-
-    // Normalize phone to a consistent format for matching
     const normalizedPhone = phone.replace(/[^0-9]/g, '').replace(/^0+/, '254');
-    const orders = deps.getOrders ? await deps.getOrders(normalizedPhone) : MOCK_ORDERS;
+    const orders = deps.getOrders ? await deps.getOrders(normalizedPhone) : [];
 
-    // Check if it's an order number
     if (input.startsWith('ORD-')) {
       const order = orders.find((o: any) => o.orderNumber === input);
       if (order) {
@@ -68,7 +66,6 @@ export async function handleOrderStatusLookup(
         );
       }
     } else {
-      // Show recent orders
       await showRecentOrders(tenantId, phone, deps, orders);
     }
   } catch (error) {
@@ -84,7 +81,7 @@ async function showRecentOrders(
   deps: OrderStatusDeps,
   orders?: any[]
 ): Promise<void> {
-  const allOrders = orders || (deps.getOrders ? await deps.getOrders() : MOCK_ORDERS);
+  const allOrders = orders || (deps.getOrders ? await deps.getOrders() : []);
   const recentOrders = allOrders.slice(0, 5);
 
   if (recentOrders.length === 0) {
@@ -99,11 +96,13 @@ async function showRecentOrders(
 
   let message = `📦 *Your Recent Orders*\n\n`;
 
-  recentOrders.forEach((order, idx) => {
+  recentOrders.forEach((order: any, idx: number) => {
     const statusEmoji = getStatusEmoji(order.status);
-    const date = order.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const date = order.createdAt?.toLocaleDateString
+      ? order.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
 
-    message += `${idx + 1}️⃣ *${order.orderNumber}*\n`;
+    message += `${idx + 1}️⃣ *${order.orderNumber || order.id}*\n`;
     message += `    📅 ${date}\n`;
 
     const items = order.products || order.items || [];
@@ -114,13 +113,13 @@ async function showRecentOrders(
       });
     }
 
-    message += `   💰 KSh ${order.total.toFixed(2)}\n`;
+    message += `   💰 KSh ${Number(order.total || 0).toFixed(2)}\n`;
     message += `   📊 ${statusEmoji} ${capitalizeFirst(order.status)}\n\n`;
   });
 
   message += `━━━━━━━━━━━━━━━\n\n`;
   message += `Reply with a number (1-${recentOrders.length}) for details,\n`;
-  message += `or type an Order Number (e.g., ORD-2841)\n`;
+  message += `or type an Order Number (e.g., ${recentOrders[0]?.orderNumber?.slice(0, 8) || 'ORD-...'})\n`;
   message += `or *0* for main menu`;
 
   if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
@@ -130,7 +129,7 @@ async function showRecentOrders(
     await deps.setFlowState(tenantId, phone, {
       step: 'order_selection',
       data: { recentOrders },
-      context: { lastActivity: new Date().toISOString() },
+      lastActivity: new Date().toISOString(),
     });
   }
 }
@@ -142,12 +141,14 @@ async function sendOrderDetails(
   deps: OrderStatusDeps
 ): Promise<void> {
   const statusEmoji = getStatusEmoji(order.status);
-  const date = order.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const date = order.createdAt?.toLocaleDateString
+    ? order.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : '';
 
   let message = `✅ *Order Found!*\n\n`;
-  message += `📦 *${order.orderNumber}*\n`;
+  message += `📦 *${order.orderNumber || order.id}*\n`;
   message += `📅 ${date}\n`;
-  message += `💰 Total: KSh ${order.total.toFixed(2)}\n`;
+  message += `💰 Total: KSh ${Number(order.total || 0).toFixed(2)}\n`;
   message += `📊 ${statusEmoji} ${capitalizeFirst(order.status)}\n\n`;
 
   const items = order.products || order.items || [];
@@ -160,22 +161,157 @@ async function sendOrderDetails(
     message += '\n';
   }
 
-  if (order.deliveryAddress) {
-    message += `📍 *Delivery:* ${order.deliveryAddress}\n`;
+  if (order.deliveryAddress || order.pickupLocation) {
+    message += `📍 *${order.deliveryMethod === 'pickup' ? 'Pickup' : 'Delivery'}:* ${order.pickupLocation || order.deliveryAddress}\n`;
   }
-
-  if (order.paymentMethod) {
-    message += `💳 *Payment:* ${order.paymentMethod}\n`;
-  }
-
+  if (order.paymentMethod) message += `💳 *Payment:* ${order.paymentMethod}\n`;
   if (order.paymentStatus) {
-    const paymentEmoji = order.paymentStatus === 'paid' ? '✅' : '⏳';
-    message += `${paymentEmoji} *Payment Status:* ${capitalizeFirst(order.paymentStatus)}\n`;
+    const payEmoji = order.paymentStatus === 'paid' ? '✅' : '⏳';
+    message += `${payEmoji} *Payment Status:* ${capitalizeFirst(order.paymentStatus)}\n`;
   }
 
   message += `\n━━━━━━━━━━━━━━━\n`;
+
+  // Add cancellation option if eligible
+  if (isEligibleForCancellation(order.status)) {
+    message += `\n1️⃣ - Request Cancellation & Refund\n`;
+  }
+
   message += `0️⃣ Back to main menu`;
 
   if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
   await deps.sendMessage(tenantId, phone, message);
+
+  // Set flow state so we can handle the cancellation selection
+  if (deps.setFlowState && isEligibleForCancellation(order.status)) {
+    await deps.setFlowState(tenantId, phone, {
+      step: 'order_detail',
+      flowName: 'order_cancellation',
+      data: { order },
+      lastActivity: new Date().toISOString(),
+    });
+  }
+}
+
+// ─── Cancellation Flow ──────────────────────────────────────────────────────
+
+export async function handleOrderCancellation(
+  tenantId: string,
+  phone: string,
+  message: string,
+  flowState: any,
+  deps: OrderStatusDeps
+): Promise<void> {
+  const text = message.trim();
+  const order = flowState.data?.order;
+
+  if (!order) {
+    await deps.sendMessage(tenantId, phone, '❌ Order not found. Reply *0* for main menu.');
+    if (deps.clearFlowState) await deps.clearFlowState(tenantId, phone);
+    return;
+  }
+
+  // Handle "back" or "cancel" at any step
+  if (text === '0') {
+    if (deps.clearFlowState) await deps.clearFlowState(tenantId, phone);
+    await deps.sendMessage(tenantId, phone, '0️⃣ Back to main menu');
+    return;
+  }
+
+  const step = flowState.currentStep || 'init';
+
+  if (step === 'init') {
+    // User saw the cancellation option and replied with 1 → ask for reason
+    if (text === '1') {
+      if (deps.setFlowState) {
+        await deps.setFlowState(tenantId, phone, {
+          step: 'order_detail',
+          flowName: 'order_cancellation',
+          currentStep: 'reason',
+          data: { order },
+          lastActivity: new Date().toISOString(),
+        });
+      }
+      if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+      await deps.sendMessage(tenantId, phone,
+        `❓ *Why are you cancelling?*\n\n` +
+        `Please tell us the reason for cancellation.\n\n` +
+        `0️⃣ Go back`
+      );
+    } else {
+      if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+      await deps.sendMessage(tenantId, phone,
+        `Reply *1️⃣* to request cancellation or *0️⃣* to go back.`
+      );
+    }
+  } else if (step === 'reason') {
+    // User provided a reason → ask for confirmation
+    if (deps.setFlowState) {
+      await deps.setFlowState(tenantId, phone, {
+        step: 'order_detail',
+        flowName: 'order_cancellation',
+        currentStep: 'confirm',
+        data: { order, reason: text },
+        lastActivity: new Date().toISOString(),
+      });
+    }
+    if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+    await deps.sendMessage(tenantId, phone,
+      `⚠️ *Confirm Cancellation*\n\n` +
+      `Are you sure you want to cancel *${order.orderNumber || order.id}*?\n\n` +
+      `Reason: ${text}\n\n` +
+      `1️⃣ - Yes, cancel this order\n` +
+      `0️⃣ - No, keep my order`
+    );
+  } else if (step === 'confirm') {
+    if (text === '1') {
+      await processCancellation(tenantId, phone, order, flowState.data?.reason, deps);
+    } else {
+      if (deps.clearFlowState) await deps.clearFlowState(tenantId, phone);
+      if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+      await deps.sendMessage(tenantId, phone, `👍 Your order is safe! No changes were made.\n\n0️⃣ Back to main menu`);
+    }
+  }
+}
+
+async function processCancellation(
+  tenantId: string,
+  phone: string,
+  order: any,
+  reason: string,
+  deps: OrderStatusDeps
+): Promise<void> {
+  try {
+    // Create cancellation request in Firestore
+    if (deps.createCancellationRequest) {
+      await deps.createCancellationRequest({
+        orderId: order.id || order._firestoreId || '',
+        orderNumber: order.orderNumber || order.id,
+        customerPhone: phone,
+        customerName: order.customerName || order.customer || 'Customer',
+        reason: reason || 'Customer requested cancellation',
+      });
+    }
+
+    // Update order status to cancellation_requested
+    if (deps.updateOrderStatus && (order.id || order._firestoreId)) {
+      await deps.updateOrderStatus(order.id || order._firestoreId, 'cancellation_requested');
+    }
+
+    if (deps.clearFlowState) await deps.clearFlowState(tenantId, phone);
+    if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+    await deps.sendMessage(tenantId, phone,
+      `✅ *Cancellation Requested*\n\n` +
+      `Your cancellation request for *${order.orderNumber || order.id}* has been submitted.\n\n` +
+      `🕐 The admin will review and confirm your cancellation shortly.\n` +
+      `You'll receive a notification once it's processed.\n\n` +
+      `0️⃣ Back to main menu`
+    );
+  } catch (error) {
+    console.error('[OrderStatus] Cancellation error:', error);
+    if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
+    await deps.sendMessage(tenantId, phone,
+      `❌ Sorry, we couldn't process your cancellation request. Please try again later.\n\n0️⃣ Back to main menu`
+    );
+  }
 }

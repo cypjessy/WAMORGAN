@@ -378,148 +378,172 @@ export default function ProductOrderPage() {
           </div>
         </div>
 
-        {/* Delivery Method - Toggle */}
+        {/* Delivery Method - Stacked */}
         <div style={{ margin: '0 20px 16px', padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
             <i className="fas fa-truck" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Delivery Method
           </h4>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <button
-              onClick={() => { setDeliveryMode('delivery'); setSelectedPickupStation(''); }}
-              style={{
-                flex: 1, padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                background: deliveryMode === 'delivery' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                border: `1.5px solid ${deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                color: deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-              <i className="fas fa-truck-fast"></i> Delivery
-            </button>
-            <button
-              onClick={() => { setDeliveryMode('pickup'); setSelectedShipping(''); }}
-              style={{
-                flex: 1, padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                background: deliveryMode === 'pickup' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                border: `1.5px solid ${deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                color: deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-              <i className="fas fa-store"></i> Pickup
-            </button>
-          </div>
 
-          {/* Delivery Options */}
-          {deliveryMode === 'delivery' && shippingMethods.length > 0 && (
-            <>
-              <label className="form-label">Shipping Method *</label>
-              {shippingMethods.map(sm => {
-                const active = selectedShipping === sm.id;
-                return (
-                  <div key={sm.id} onClick={() => setSelectedShipping(sm.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 'var(--radius-md)',
-                      background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                      border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                      marginBottom: 8, cursor: 'pointer',
-                    }}>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                      background: active ? 'var(--accent-primary)' : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h5 style={{ fontSize: 14, fontWeight: 700 }}>{sm.name}</h5>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: sm.price === '0' ? 'var(--success)' : 'var(--accent-primary)' }}>
-                          {sm.price === '0' ? 'FREE' : `KSh ${sm.price}`}
-                        </span>
-                        {sm.estimatedDays && (
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sm.estimatedDays}</span>
-                        )}
+          {/* ── Delivery Option Card ── */}
+          <div
+            onClick={() => { setDeliveryMode('delivery'); setSelectedPickupStation(''); }}
+            style={{
+              padding: 14, borderRadius: 'var(--radius-md)', marginBottom: 10, cursor: 'pointer',
+              background: deliveryMode === 'delivery' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+              border: `1.5px solid ${deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                border: `2px solid ${deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                background: deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {deliveryMode === 'delivery' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+              </div>
+              <i className="fas fa-truck-fast" style={{ fontSize: 18, color: 'var(--accent-primary)', width: 24, textAlign: 'center' }}></i>
+              <div style={{ flex: 1 }}>
+                <h5 style={{ fontSize: 14, fontWeight: 700 }}>Delivery</h5>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>Get it shipped to you</p>
+              </div>
+            </div>
+
+            {/* Shipping methods — visible when delivery is selected */}
+            {deliveryMode === 'delivery' && shippingMethods.length > 0 && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+                <label className="form-label" style={{ marginBottom: 8 }}>Shipping Method *</label>
+                {shippingMethods.map(sm => {
+                  const active = selectedShipping === sm.id;
+                  return (
+                    <div key={sm.id} onClick={(e) => { e.stopPropagation(); setSelectedShipping(sm.id); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                        border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        marginBottom: 8, cursor: 'pointer',
+                      }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        background: active ? 'var(--accent-primary)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h5 style={{ fontSize: 14, fontWeight: 700 }}>{sm.name}</h5>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: sm.price === '0' ? 'var(--success)' : 'var(--accent-primary)' }}>
+                            {sm.price === '0' ? 'FREE' : `KSh ${sm.price}`}
+                          </span>
+                          {sm.estimatedDays && (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sm.estimatedDays}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          {/* Pickup Options */}
-          {deliveryMode === 'pickup' && (
-            <>
-              <label className="form-label">Pickup Location *</label>
-              {pickupStations.length > 0 ? (
-                <>
-                  <select
-                    className="form-input form-select"
-                    value={selectedCounty}
-                    onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
-                    style={{ marginBottom: 8 }}
-                  >
-                    <option value="">Select county</option>
-                    {counties.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  {selectedCounty && (
+          {/* ── Pickup Option Card ── */}
+          <div
+            onClick={() => { setDeliveryMode('pickup'); setSelectedShipping(''); }}
+            style={{
+              padding: 14, borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              background: deliveryMode === 'pickup' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+              border: `1.5px solid ${deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                border: `2px solid ${deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                background: deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {deliveryMode === 'pickup' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+              </div>
+              <i className="fas fa-store" style={{ fontSize: 18, color: 'var(--accent-primary)', width: 24, textAlign: 'center' }}></i>
+              <div style={{ flex: 1 }}>
+                <h5 style={{ fontSize: 14, fontWeight: 700 }}>Pickup</h5>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>Collect from a station near you</p>
+              </div>
+            </div>
+
+            {/* Pickup station selection — visible when pickup is selected */}
+            {deliveryMode === 'pickup' && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+                <label className="form-label" style={{ marginBottom: 8 }}>Pickup Location *</label>
+                {pickupStations.length > 0 ? (
+                  <>
                     <select
                       className="form-input form-select"
-                      value={selectedTown}
-                      onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
+                      value={selectedCounty}
+                      onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
                       style={{ marginBottom: 8 }}
                     >
-                      <option value="">Select town</option>
-                      {towns.map(t => <option key={t} value={t}>{t}</option>)}
+                      <option value="">Select county</option>
+                      {counties.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  )}
-                  {selectedTown && (
-                    <div>
-                      {stationsForTown.map(station => {
-                        const active = selectedPickupStation === station.stationName;
-                        return (
-                          <div key={station.id} onClick={() => setSelectedPickupStation(station.stationName)}
-                            style={{
-                              padding: 14, borderRadius: 'var(--radius-md)',
-                              background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                              border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                              marginBottom: 8, cursor: 'pointer',
-                            }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{
-                                width: 22, height: 22, borderRadius: '50%',
-                                border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                                background: active ? 'var(--accent-primary)' : 'transparent',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    {selectedCounty && (
+                      <select
+                        className="form-input form-select"
+                        value={selectedTown}
+                        onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
+                        style={{ marginBottom: 8 }}
+                      >
+                        <option value="">Select town</option>
+                        {towns.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    )}
+                    {selectedTown && (
+                      <div>
+                        {stationsForTown.map(station => {
+                          const active = selectedPickupStation === station.stationName;
+                          return (
+                            <div key={station.id} onClick={(e) => { e.stopPropagation(); setSelectedPickupStation(station.stationName); }}
+                              style={{
+                                padding: 14, borderRadius: 'var(--radius-md)',
+                                background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                                border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                marginBottom: 6, cursor: 'pointer',
                               }}>
-                                {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
-                                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
-                                {station.contactPhone && (
-                                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
-                                )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                  width: 22, height: 22, borderRadius: '50%',
+                                  border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                  background: active ? 'var(--accent-primary)' : 'transparent',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                }}>
+                                  {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
+                                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
+                                  {station.contactPhone && (
+                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <input
-                  className="form-input"
-                  placeholder="Enter pickup location"
-                  value={selectedPickupStation}
-                  onChange={e => setSelectedPickupStation(e.target.value)}
-                />
-              )}
-            </>
-          )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <input
+                    className="form-input"
+                    placeholder="Enter pickup location"
+                    value={selectedPickupStation}
+                    onChange={e => setSelectedPickupStation(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Payment Method */}

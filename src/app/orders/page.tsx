@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { orderService, businessProfileService } from '@/lib/db';
+import { orderService, businessProfileService, cancellationRequestService } from '@/lib/db';
 import { sendOrderConfirmation, sendOrderStatusUpdate, sendOrderCancellation } from '@/lib/webhook-handlers/order-notification';
 import { sendMessage } from '@/lib/evolution';
 import { formatPhoneNumber } from '@/utils/phoneUtils';
@@ -22,6 +22,7 @@ import DatePickerSheet from './components/DatePickerSheet';
 import CreateOrderDialog from './components/CreateOrderDialog';
 import CancelDialog from './components/CancelDialog';
 import PaidDialog from './components/PaidDialog';
+import CancellationRequestsSheet from './components/CancellationRequestsSheet';
 import Snackbar from './components/Snackbar';
 import RefreshIndicator from './components/RefreshIndicator';
 import MoreSheet from '../components/MoreSheet';
@@ -89,10 +90,12 @@ export default function OrdersPage() {
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const [firestoreOrders, profile] = await Promise.all([
+      const [firestoreOrders, profile, cancelReqs] = await Promise.all([
         orderService.getOrders(),
         businessProfileService.getProfile(),
+        cancellationRequestService.getAll().catch(() => []),
       ]);
+      setCancelRequests(cancelReqs);
       setBusinessName(profile?.businessName || '');
       setOrders(firestoreOrders.map((o) => ({
         id: o.orderNumber || o.id,
@@ -155,9 +158,15 @@ export default function OrdersPage() {
   // More sheet
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
+  // Cancellation requests
+  const [cancelRequests, setCancelRequests] = useState<any[]>([]);
+  const [cancelRequestsLoading, setCancelRequestsLoading] = useState(false);
+  const [cancelRequestsOpen, setCancelRequestsOpen] = useState(false);
+  const pendingCancelCount = cancelRequests.filter((r: any) => r.status === 'pending').length;
+
   // Sheets
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
-   const [selectedOrder, setSelectedOrder] = useState<LocalOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<LocalOrder | null>(null);
   const [statusUpdateSheetOpen, setStatusUpdateSheetOpen] = useState(false);
   const [invoiceSheetOpen, setInvoiceSheetOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -350,6 +359,66 @@ export default function OrdersPage() {
     showToast('Invoice downloaded', 'success');
   }, [showToast]);
 
+  const handleApproveCancellation = useCallback(async (requestId: string, orderNumber: string) => {
+    try {
+      // Find the order in our local list
+      const order = orders.find(o => o.id === orderNumber);
+      if (!order?._firestoreId) {
+        showToast('Order not found', 'error');
+        return;
+      }
+      // Update cancellation request status
+      await cancellationRequestService.update(requestId, {
+        status: 'approved',
+        respondedAt: new Date().toISOString(),
+      });
+      // Update order status to cancelled
+      await orderService.updateOrder(order._firestoreId, { status: 'cancelled' });
+      // Send WhatsApp notification
+      if (order.phone) {
+        const { sendOrderCancellation } = await import('@/lib/webhook-handlers/order-notification');
+        sendOrderCancellation(order.phone, order.id, order.customer);
+      }
+      showToast('Cancellation approved', 'success');
+      loadOrders();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to approve cancellation', 'error');
+    }
+  }, [orders, showToast, loadOrders]);
+
+  const handleRejectCancellation = useCallback(async (requestId: string, orderNumber: string) => {
+    try {
+      // Find the order in our local list
+      const order = orders.find(o => o.id === orderNumber);
+      if (!order?._firestoreId) {
+        showToast('Order not found', 'error');
+        return;
+      }
+      // Update cancellation request status
+      await cancellationRequestService.update(requestId, {
+        status: 'rejected',
+        respondedAt: new Date().toISOString(),
+      });
+      // Revert order status back to pending
+      await orderService.updateOrder(order._firestoreId, { status: 'pending' });
+      // Send WhatsApp notification
+      if (order.phone) {
+        const { sendMessage } = await import('@/lib/evolution');
+        await sendMessage(instanceName, order.phone,
+          `✅ *Cancellation Declined — ${orderNumber}*\n\n` +
+          `Hi *${order.customer}*,\n\n` +
+          `Your cancellation request has been reviewed and declined.\n` +
+          `Your order is still active and will be processed.\n\n` +
+          `If you have any questions, please contact our support team.`
+        );
+      }
+      showToast('Cancellation rejected', 'success');
+      loadOrders();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reject cancellation', 'error');
+    }
+  }, [orders, instanceName, showToast, loadOrders]);
+
   // Cleanup
   useEffect(() => {
     return () => clearTimeout(toastTimeout.current);
@@ -373,6 +442,8 @@ export default function OrdersPage() {
           onClearSearch={() => setSearchQuery('')}
           onFilterClick={() => setFilterSheetOpen(true)}
           filterActive={filterActive}
+          pendingCancellations={pendingCancelCount}
+          onCancellationsClick={() => setCancelRequestsOpen(true)}
         />
 
         <SummaryCards totalRevenue={totalRevenue} totalOrders={orders.length} />
@@ -469,6 +540,16 @@ export default function OrdersPage() {
         onClose={() => { setCreateOrderOpen(false); setFabOpen(false); }}
         onCreateOrder={handleCreateOrder}
         showToast={showToast}
+      />
+
+      {/* Cancellation Requests Sheet */}
+      <CancellationRequestsSheet
+        open={cancelRequestsOpen}
+        requests={cancelRequests}
+        onClose={() => setCancelRequestsOpen(false)}
+        onApprove={handleApproveCancellation}
+        onReject={handleRejectCancellation}
+        isLoading={cancelRequestsLoading}
       />
 
       {/* Dialogs */}

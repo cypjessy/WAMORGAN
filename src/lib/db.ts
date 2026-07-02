@@ -688,6 +688,53 @@ export const supportTicketService = {
   },
 };
 
+// ─── Cancellation Request Types ────────────────────────────────────────────
+
+export interface CancellationRequest {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerPhone: string;
+  customerName: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: any;
+  respondedAt?: any;
+  responseNote?: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export const cancellationRequestService = {
+  async create(request: Omit<CancellationRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<CancellationRequest> {
+    const docRef = doc(collection(db, 'cancellation_requests'));
+    const data: CancellationRequest = {
+      ...request,
+      id: docRef.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(docRef, data);
+    return data;
+  },
+
+  async getAll(): Promise<CancellationRequest[]> {
+    const q = query(collection(db, 'cancellation_requests'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CancellationRequest[];
+  },
+
+  async getPending(): Promise<CancellationRequest[]> {
+    const q = query(collection(db, 'cancellation_requests'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CancellationRequest[];
+  },
+
+  async update(id: string, data: Partial<CancellationRequest>): Promise<void> {
+    await setDoc(doc(db, 'cancellation_requests', id), { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  },
+};
+
 // ─── Service: Search Analytics ──────────────────────────────────────────────
 
 export const searchAnalyticsService = {

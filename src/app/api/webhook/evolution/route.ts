@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleProductSearch as handleProductSearchHandler } from '@/lib/webhook-handlers/product-search';
-import { handleOrderStatusLookup } from '@/lib/webhook-handlers/order-status';
+import { handleOrderStatusLookup, handleOrderCancellation, isEligibleForCancellation } from '@/lib/webhook-handlers/order-status';
 import { startProductBrowseFlow, handleProductBrowseInput } from '@/lib/webhook-handlers/product-browse';
 import { sendPaymentInfo } from '@/lib/webhook-handlers/payment-info';
 import { logWebhookEvent, extractSenderInfo, extractMessageText, isGroupMessage } from '@/lib/webhook-logger';
@@ -758,6 +758,39 @@ async function handleFlowStep(
     baseUrl: baseAppUrl,
   };
 
+  // Handle order cancellation flow
+  if (flowState.flowName === 'order_cancellation') {
+    await handleOrderCancellation(instanceName, phone, text, flowState, {
+      sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
+      startTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
+      stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
+      setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
+      clearFlowState: async (tid, p) => { await clearFlowState(p, tid); },
+      getOrders: fetchOrders,
+      createCancellationRequest: async (data) => {
+        const adminDb = await getAdminDb();
+        if (!adminDb) return;
+        const Timestamp = await getTimestamp();
+        await adminDb.collection('cancellation_requests').add({
+          ...data,
+          status: 'pending',
+          requestedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+        });
+      },
+      updateOrderStatus: async (orderId, status) => {
+        const adminDb = await getAdminDb();
+        if (!adminDb) return;
+        const Timestamp = await getTimestamp();
+        await adminDb.collection('orders').doc(orderId).update({
+          status,
+          updatedAt: Timestamp.now(),
+        });
+      },
+    });
+    return null;
+  }
+
   // Handle product browse flow (set by startProductBrowseFlow / product-browse.ts)
   if (flowState.flowName === 'product_browse' || flowState.step === 'browsing_products') {
     const browseData = flowState.selections || flowState.data;
@@ -867,8 +900,27 @@ async function handleFlowStep(
           msg += `${payEmoji} *Payment Status:* ${order.paymentStatus}\n`;
         }
 
-        msg += `\n0️⃣ Back to main menu`;
-        await clearFlowState(phone, instanceName);
+        msg += `\n━━━━━━━━━━━━━━━\n`;
+
+        const canCancel = isEligibleForCancellation(order.status);
+
+        if (canCancel) {
+          msg += `\n1️⃣ - Request Cancellation & Refund\n`;
+        }
+
+        msg += `0️⃣ Back to main menu`;
+
+        if (canCancel) {
+          await setFlowState(phone, instanceName, {
+            step: 'order_detail',
+            flowName: 'order_cancellation',
+            data: { order },
+            lastActivity: new Date().toISOString(),
+          });
+        } else {
+          await clearFlowState(phone, instanceName);
+        }
+
         return msg;
       }
 
