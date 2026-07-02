@@ -333,11 +333,16 @@ async function sendWhatsAppMessage(tenantId: string, phone: string, message: str
       return;
     }
     const formattedNumber = await formatJid(phone);
-    await fetch(`${url.replace(/\/+$/, '')}/message/sendText/${tenantId}`, {
+    const apiUrl = `${url.replace(/\/+$/, '')}/message/sendText/${tenantId}`;
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       body: JSON.stringify({ number: formattedNumber, text: message }),
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error(`[Webhook] Send message failed (${res.status}): ${errText}`);
+    }
   } catch (error) {
     console.error('[Webhook] Failed to send WhatsApp message:', error);
   }
@@ -353,7 +358,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const webhookData = await request.json();
-    console.log('[Webhook] Received:', JSON.stringify(webhookData).slice(0, 300));
+    console.log('[Webhook] Received event:', webhookData.event || webhookData.eventType);
+    console.log('[Webhook] Raw data keys:', Object.keys(webhookData).join(', '));
+    console.log('[Webhook] Data type:', Array.isArray(webhookData.data) ? 'array' : typeof webhookData.data);
+    console.log('[Webhook] Payload preview:', JSON.stringify(webhookData).slice(0, 500));
 
     // Extract instance name from webhook data
     const instanceName = webhookData.instance || webhookData.instanceName || 'default';
@@ -362,8 +370,9 @@ export async function POST(request: NextRequest) {
     // ─── Handle CONNECTION_UPDATE events ──────────────────────────────────
     const eventType = webhookData.event || webhookData.eventType || '';
     if (eventType === 'CONNECTION_UPDATE' || webhookData.event === 'connection.update') {
-      const state = webhookData?.data?.state || webhookData?.state || 'unknown';
-      const phone = webhookData?.data?.phone?.number || webhookData?.phone?.number || '';
+      const connData = Array.isArray(webhookData?.data) ? webhookData.data[0] || {} : (webhookData?.data || webhookData);
+      const state = connData?.state || webhookData?.state || 'unknown';
+      const phone = connData?.phone?.number || webhookData?.phone?.number || '';
       const db = getAdminDb();
       if (db) {
         await db.collection('businessProfiles').doc('main').set({
@@ -381,8 +390,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Extract message data ─────────────────────────────────────────────
-    const data = webhookData.data || webhookData;
-    const msg = data.message || data;
+    // Evolution API sends data as an array of messages; take the first one.
+    let rawData = webhookData.data || webhookData;
+    if (Array.isArray(rawData)) rawData = rawData[0] || {};
+    const msg = rawData.message || rawData;
     const key = msg.key || {};
 
     phone = extractSenderInfo(msg).phone;
