@@ -14,10 +14,14 @@ import { getAdminDb, getFieldValue, getTimestamp } from '@/lib/firebase-admin';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface FlowState {
-  step: string;
+  step?: string;
   data?: any;
   context?: Record<string, any>;
   expiresAt: number;
+  flowName?: string;
+  currentStep?: string;
+  selections?: any;
+  lastActivity?: string;
 }
 
 // In-memory cache for flow states (primary source for speed, backed by Firestore)
@@ -634,18 +638,14 @@ async function handleMenuChoice(
 ): Promise<string | null> {
   switch (choice) {
     case '1': {
-      await setFlowState(phone, instanceName, {
-        step: 'browsing_products',
-        data: {},
-      });
-      // Use the product browse flow with Firestore data
-      startProductBrowseFlow(instanceName, phone, {
+      // startProductBrowseFlow handles its own flow state internally
+      await startProductBrowseFlow(instanceName, phone, {
         sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
         startTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
         stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
         setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
         getProducts: fetchProducts,
-      }).catch(console.error);
+      });
       return null;
     }
 
@@ -674,61 +674,95 @@ async function handleMenuChoice(
   }
 }
 
+async function handleMisroutedReply(
+  text: string,
+  currentState: FlowState,
+  phone: string,
+  instanceName: string
+): Promise<string | null> {
+  if (text === '0') {
+    await clearFlowState(phone, instanceName);
+    return buildMainMenu();
+  }
+  if (text === '1') {
+    const prev = currentState.data?.previousState;
+    if (prev) {
+      const { expiresAt: _, ...restore } = prev;
+      await setFlowState(phone, instanceName, restore);
+      return "👌 Going back. Please try again.";
+    }
+    await clearFlowState(phone, instanceName);
+    return buildMainMenu();
+  }
+
+  await setFlowState(phone, instanceName, {
+    step: 'misrouted',
+    data: { previousState: currentState },
+  });
+  return `I didn't understand that. What would you like to do?\n\n1️⃣ Go back\n0️⃣ Main menu`;
+}
+
 async function handleFlowStep(
   text: string,
   flowState: FlowState,
   phone: string,
   instanceName: string
 ): Promise<string | null> {
-  switch (flowState.step) {
-    case 'browsing_products': {
-      if (text === '0') {
+  const browseDeps = {
+    sendMessage: (tid: string, p: string, msg: string) => sendWhatsAppMessage(tid, p, msg),
+    startTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'composing'),
+    stopTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'paused'),
+    setFlowState: async (tid: string, p: string, state: any) => { await setFlowState(p, tid, state); },
+    getProducts: fetchProducts,
+  };
+
+  // Handle product browse flow (set by startProductBrowseFlow / product-browse.ts)
+  if (flowState.flowName === 'product_browse' || flowState.step === 'browsing_products') {
+    const browseData = flowState.selections || flowState.data;
+    if (text === '0') {
+      try {
+        await handleProductBrowseInput(instanceName, phone, '0', { currentStep: 'category_selection', selections: browseData }, browseDeps);
+      } catch {}
+      await clearFlowState(phone, instanceName);
+      return buildMainMenu();
+    }
+
+    try {
+      if (browseData?.categories || browseData?.subcategories) {
+        await handleProductBrowseInput(instanceName, phone, text, { currentStep: flowState.currentStep || 'category_selection', selections: browseData }, browseDeps);
+        return null;
+      }
+    } catch (browseErr: any) {
+      if (browseErr.message === 'GO_TO_MENU') {
         await clearFlowState(phone, instanceName);
         return buildMainMenu();
       }
-
-      const browseDeps = {
-        sendMessage: (tid: string, p: string, msg: string) => sendWhatsAppMessage(tid, p, msg),
-        startTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'composing'),
-        stopTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'paused'),
-        setFlowState: async (tid: string, p: string, state: any) => { await setFlowState(p, tid, state); },
-        getProducts: fetchProducts,
-      };
-
-      // Try browse flow first; if it throws GO_TO_MENU or fails, fall back to search
-      try {
-        if (flowState.data?.categories || flowState.data?.subcategories) {
-          await handleProductBrowseInput(instanceName, phone, text, flowState.data, browseDeps);
-          return null;
-        }
-      } catch (browseErr: any) {
-        if (browseErr.message === 'GO_TO_MENU') {
-          await clearFlowState(phone, instanceName);
-          return buildMainMenu();
-        }
-      }
-
-      await setFlowState(phone, instanceName, {
-        step: 'product_search',
-        data: { query: text },
-      });
-
-      try {
-        await handleProductSearchHandler(instanceName, phone, text, {
-          sendTypingIndicator: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
-          stopTypingIndicator: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
-          sendMessage: (tenantId: string, phoneNum: string, msg: string) =>
-            sendWhatsAppMessage(tenantId, phoneNum, msg),
-          setFlowState: async (tenantId: string, phoneNum: string, state: any) => {
-            await setFlowState(phoneNum, tenantId, state);
-          },
-          getProducts: fetchProducts,
-        });
-        return null;
-      } catch (err) {
-        return `🔍 I couldn't find "${text}". Try a different keyword or type *0* for the main menu.`;
-      }
     }
+
+    // No browse data found — fall back to product search
+    await setFlowState(phone, instanceName, {
+      step: 'product_search',
+      data: { query: text },
+    });
+
+    try {
+      await handleProductSearchHandler(instanceName, phone, text, {
+        sendTypingIndicator: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
+        stopTypingIndicator: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
+        sendMessage: (tenantId: string, phoneNum: string, msg: string) =>
+          sendWhatsAppMessage(tenantId, phoneNum, msg),
+        setFlowState: async (tenantId: string, phoneNum: string, state: any) => {
+          await setFlowState(phoneNum, tenantId, state);
+        },
+        getProducts: fetchProducts,
+      });
+      return null;
+    } catch (err) {
+      return `🔍 I couldn't find "${text}". Try a different keyword or type *0* for the main menu.`;
+    }
+  }
+
+  switch (flowState.step) {
 
     case 'order_status': {
       if (text === '0') {
@@ -753,8 +787,11 @@ async function handleFlowStep(
       }
 
       const num = parseInt(text);
+      if (isNaN(num) || num < 1) {
+        return handleMisroutedReply(text, flowState, phone, instanceName);
+      }
       const orders = flowState.data?.recentOrders || [];
-      if (!isNaN(num) && num >= 1 && num <= orders.length) {
+      if (num >= 1 && num <= orders.length) {
         const order = orders[num - 1];
         const statusEmoji: Record<string, string> = {
           pending: '⏳', processing: '🔄', completed: '✅',
@@ -842,9 +879,26 @@ async function handleFlowStep(
       }
     }
 
+    case 'misrouted': {
+      if (text === '0') {
+        await clearFlowState(phone, instanceName);
+        return buildMainMenu();
+      }
+      if (text === '1') {
+        const prev = flowState.data?.previousState;
+        if (prev) {
+          const { expiresAt: _, ...restore } = prev;
+          await setFlowState(phone, instanceName, restore);
+          return "👌 Going back. Please try again.";
+        }
+        await clearFlowState(phone, instanceName);
+        return buildMainMenu();
+      }
+      return `I didn't understand that. Choose:\n\n1️⃣ Go back\n0️⃣ Main menu`;
+    }
+
     default:
-      await clearFlowState(phone, instanceName);
-      return buildMainMenu();
+      return handleMisroutedReply(text, flowState, phone, instanceName);
   }
 }
 
