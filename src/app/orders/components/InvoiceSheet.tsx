@@ -26,6 +26,7 @@ interface InvoiceOrder {
   payment: string;
   paymentInfo?: { method: string; reference?: string };
   date: string;
+  status?: string;
 }
 
 interface InvoiceSheetProps {
@@ -63,7 +64,15 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
   const subtotal = order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
   const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
   const paymentLabel = order.paymentInfo?.method || 'Credit Card';
-  const payText = order.payment === 'paid' ? 'Payment Received' : order.payment === 'refunded' ? 'Payment Refunded' : 'Payment Pending';
+  const payText = order.status === 'cancelled'
+    ? 'Order Cancelled'
+    : order.status === 'refunded'
+    ? 'Order Refunded'
+    : order.payment === 'paid'
+    ? 'Payment Received'
+    : order.payment === 'refunded'
+    ? 'Payment Refunded'
+    : 'Payment Pending';
 
   const handleSendToWhatsApp = useCallback(async () => {
     if (!order.phone) {
@@ -219,13 +228,43 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
               <div style={{
                 textAlign: 'center', marginTop: 16, padding: 14,
                 borderRadius: 8,
-                background: order.payment === 'paid' ? '#ecfdf5' : '#fffbeb',
+                background: order.status === 'cancelled' || order.status === 'refunded'
+                  ? '#fef2f2'
+                  : order.payment === 'paid'
+                  ? '#ecfdf5'
+                  : '#fffbeb',
               }}>
-                <i className={`fas ${order.payment === 'paid' ? 'fa-check-circle' : 'fa-clock'}`}
-                  style={{ color: order.payment === 'paid' ? '#10b981' : '#f59e0b', fontSize: 22, marginBottom: 6, display: 'block' }}></i>
-                <p style={{ color: order.payment === 'paid' ? '#059669' : '#d97706', fontWeight: 700, fontSize: 13, margin: 0 }}>{payText}</p>
+                <i className={`fas ${
+                  order.status === 'cancelled' || order.status === 'refunded'
+                    ? 'fa-ban'
+                    : order.payment === 'paid'
+                    ? 'fa-check-circle'
+                    : 'fa-clock'
+                }`}
+                  style={{
+                    color: order.status === 'cancelled' || order.status === 'refunded'
+                      ? '#ef4444'
+                      : order.payment === 'paid'
+                      ? '#10b981'
+                      : '#f59e0b',
+                    fontSize: 22, marginBottom: 6, display: 'block',
+                  }}></i>
+                <p style={{
+                  color: order.status === 'cancelled' || order.status === 'refunded'
+                    ? '#dc2626'
+                    : order.payment === 'paid'
+                    ? '#059669'
+                    : '#d97706',
+                  fontWeight: 700, fontSize: 13, margin: 0,
+                }}>{payText}</p>
                 <p style={{ color: '#6b7280', fontSize: 11, margin: '4px 0 0' }}>
-                  {order.payment === 'paid' ? `Paid via ${paymentLabel} on ${order.date}` : 'Awaiting payment confirmation'}
+                  {order.status === 'cancelled'
+                    ? 'This order has been cancelled'
+                    : order.status === 'refunded'
+                    ? 'This order has been refunded'
+                    : order.payment === 'paid'
+                    ? `Paid via ${paymentLabel} on ${order.date}`
+                    : 'Awaiting payment confirmation'}
                 </p>
               </div>
             </div>
