@@ -10,6 +10,17 @@ export interface ProductBrowseDeps {
 
 const PAGE_SIZE = 5;
 
+// Extract the product type from a product object
+// First checks top-level `type` field, then falls back to specs.type array
+function getProductType(product: any): string | null {
+  if (product.type && product.type !== 'null' && product.type !== 'unknown' && product.type !== 'undefined') return product.type;
+  if (product.specs?.type && Array.isArray(product.specs.type) && product.specs.type.length > 0) {
+    const t = product.specs.type[0];
+    if (t && t !== 'null' && t !== 'unknown' && t !== 'undefined') return t;
+  }
+  return null;
+}
+
 const BROWSE_CATEGORIES = [
   {
     name: 'Fashion & Apparel',
@@ -213,6 +224,8 @@ export async function handleProductBrowseInput(
       await handleCategorySelection(tenantId, phone, message, selections, deps);
     } else if (currentStep === 'subcategory_selection') {
       await handleSubcategorySelection(tenantId, phone, message, selections, deps);
+    } else if (currentStep === 'type_selection') {
+      await handleTypeSelection(tenantId, phone, message, selections, deps);
     } else if (currentStep === 'product_pagination') {
       await handleProductPagination(tenantId, phone, message, selections, deps);
     } else {
@@ -367,7 +380,74 @@ async function handleSubcategorySelection(
     return;
   }
 
-  await showCategoryProducts(tenantId, phone, selectedSub, filteredProducts, deps, selections);
+  // Check if products in this subcategory have types (e.g., "Dresses", "Tops")
+  const types = [...new Set(filteredProducts.map((p: any) => getProductType(p)).filter(Boolean))] as string[];
+
+  if (types.length > 0) {
+    // Show type selection if we have meaningful types (not all products have the same type)
+    const typeList = types
+      .map((t: string, idx: number) => `${idx + 1}️⃣ ${t}`)
+      .join('\n');
+
+    await deps.sendMessage(tenantId, phone,
+      `📂 *${selectedSub}*\n\nChoose a type:\n\n${typeList}\n\n0️⃣ Back to subcategories`
+    );
+
+    await deps.setFlowState(tenantId, phone, {
+      flowName: 'product_browse',
+      currentStep: 'type_selection',
+      selections: {
+        ...selections,
+        subcategoryName: selectedSub,
+        availableTypes: types,
+        subcategoryProducts: filteredProducts,
+      },
+      lastActivity: new Date().toISOString(),
+    });
+  } else {
+    // No distinct types — show products directly
+    await showCategoryProducts(tenantId, phone, selectedSub, filteredProducts, deps, selections);
+  }
+}
+
+async function handleTypeSelection(
+  tenantId: string,
+  phone: string,
+  message: string,
+  selections: any,
+  deps: ProductBrowseDeps
+): Promise<void> {
+  const num = parseInt(message.trim());
+  const types = selections.availableTypes || [];
+
+  if (message.trim() === '0') {
+    await deps.stopTyping(tenantId, phone);
+    await startProductBrowseFlow(tenantId, phone, deps);
+    return;
+  }
+
+  if (isNaN(num) || num < 1 || num > types.length) {
+    await deps.stopTyping(tenantId, phone);
+    await deps.sendMessage(tenantId, phone, '❌ Invalid selection. Please reply with a number from the list.');
+    return;
+  }
+
+  await deps.stopTyping(tenantId, phone);
+
+  const selectedType = types[num - 1];
+  const subcategoryProducts = selections.subcategoryProducts || [];
+  const typeProducts = subcategoryProducts.filter(
+    (p: any) => (getProductType(p) || '').toLowerCase() === selectedType.toLowerCase()
+  );
+
+  if (typeProducts.length === 0) {
+    await deps.sendMessage(tenantId, phone,
+      `📦 *${selectedType}*\n\nNo products found.\n\n0️⃣ Back to subcategories`
+    );
+    return;
+  }
+
+  await showCategoryProducts(tenantId, phone, `${selections.subcategoryName || ''} — ${selectedType}`, typeProducts, deps, selections);
 }
 
 export async function handleProductPagination(
