@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { productService, orderService, businessProfileService } from '@/lib/db';
-import type { PickupStation } from '@/lib/db';
+import type { ShippingMethod } from '@/lib/db';
+import { sendOrderConfirmation } from '@/lib/webhook-handlers/order-notification';
 import Snackbar from '../../cart/components/Snackbar';
-
-const TAX_RATE = 0.08;
 
 interface PaymentMethodDef {
   value: string;
@@ -29,7 +28,8 @@ export default function ProductOrderPage() {
   const [loading, setLoading] = useState(true);
 
   // Store config from admin settings
-  const [pickupStations, setPickupStations] = useState<PickupStation[]>([]);
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
+  const [selectedShipping, setSelectedShipping] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodDef[]>([]);
   const [rawPaymentConfig, setRawPaymentConfig] = useState<any>(null);
 
@@ -40,21 +40,8 @@ export default function ProductOrderPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [selectedCounty, setSelectedCounty] = useState('');
-  const [selectedTown, setSelectedTown] = useState('');
-  const [selectedPickupStation, setSelectedPickupStation] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-
-  // Derived data
-  const counties = useMemo(() => [...new Set(pickupStations.map(s => s.county))].sort(), [pickupStations]);
-  const towns = useMemo(() =>
-    [...new Set(pickupStations.filter(s => s.county === selectedCounty).map(s => s.town))].sort(),
-    [pickupStations, selectedCounty]
-  );
-  const stationsForTown = useMemo(() =>
-    pickupStations.filter(s => s.town === selectedTown && s.county === selectedCounty),
-    [pickupStations, selectedCounty, selectedTown]
-  );
 
   // UI state
   const [placing, setPlacing] = useState(false);
@@ -84,19 +71,21 @@ export default function ProductOrderPage() {
         if (allSizes.length > 0) setSelectedSize(allSizes[0]);
       }
       if (config) {
-        setPickupStations((config.pickupStations || []).filter(s => s.isActive));
+        const sm = config.shippingMethods || [];
+        setShippingMethods(sm);
+        if (sm.length > 0) setSelectedShipping(sm[0].id);
         setRawPaymentConfig(config.paymentMethods || {});
         const pm = config.paymentMethods || {};
         const enabledPMs: PaymentMethodDef[] = [];
         if (pm.mpesa?.enabled) {
-          if (pm.mpesa.buyGoods?.enabled && pm.mpesa.buyGoods.tillNumber) {
+          if (pm.mpesa.buyGoods?.tillNumber) {
             enabledPMs.push({ value: 'mpesa_buygoods', label: `M-Pesa Buy Goods (Till: ${pm.mpesa.buyGoods.tillNumber})`, icon: 'fas fa-store', color: '#10b981', desc: 'Pay via M-Pesa Buy Goods' });
           }
-          if (pm.mpesa.paybill?.enabled && pm.mpesa.paybill.paybillNumber) {
+          if (pm.mpesa.paybill?.paybillNumber) {
             const accountLabel = pm.mpesa.paybill.accountNumber ? ` - Acc: ${pm.mpesa.paybill.accountNumber}` : '';
             enabledPMs.push({ value: 'mpesa_paybill', label: `M-Pesa Paybill ${pm.mpesa.paybill.paybillNumber}${accountLabel}`, icon: 'fas fa-building', color: '#10b981', desc: 'Pay via M-Pesa Paybill' });
           }
-          if (pm.mpesa.personal?.enabled && pm.mpesa.personal.name) {
+          if (pm.mpesa.personal?.name) {
             enabledPMs.push({ value: 'mpesa_personal', label: `M-Pesa (${pm.mpesa.personal.name})`, icon: 'fas fa-user', color: '#10b981', desc: 'Pay via M-Pesa Personal' });
           }
         }
@@ -116,14 +105,17 @@ export default function ProductOrderPage() {
   // Compute prices
   const price = useMemo(() => product?.salePrice || product?.price || 0, [product]);
   const subtotal = price * quantity;
-  const shippingCost = 0;
-  const tax = subtotal * TAX_RATE;
-  const total = subtotal + tax;
+  const shippingCost = useMemo(() => {
+    const sm = shippingMethods.find(s => s.id === selectedShipping);
+    return sm ? parseFloat(sm.price) || 0 : 0;
+  }, [selectedShipping, shippingMethods]);
+  const total = subtotal + shippingCost;
 
   const validate = (): string | null => {
     if (!customerName.trim()) return 'Please enter your name';
     if (!customerPhone.trim()) return 'Please enter your phone number';
-    if (!selectedPickupStation) return 'Please select a pickup station';
+    if (!deliveryAddress.trim()) return 'Please enter your delivery address';
+    if (shippingMethods.length > 0 && !selectedShipping) return 'Please select a shipping method';
     if (!paymentMethod) return 'Please select a payment method';
     return null;
   };
@@ -134,11 +126,13 @@ export default function ProductOrderPage() {
 
     setPlacing(true);
     try {
+      const sm = shippingMethods.find(s => s.id === selectedShipping);
       const orderData = {
         customerId: user?.uid,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
+        deliveryAddress: deliveryAddress.trim(),
         items: [{
           productId: product.id,
           name: product.name + (selectedColor || selectedSize ? ` (${[selectedColor, selectedSize].filter(Boolean).join(', ')})` : ''),
@@ -148,14 +142,14 @@ export default function ProductOrderPage() {
           orderLink: `${window.location.origin}/client/order/${product.id}`,
         }],
         subtotal,
-        shipping: 0,
-        tax,
+        shipping: shippingCost,
+        tax: 0,
         discount: 0,
         total,
         paymentMethod,
         paymentStatus: 'unpaid' as const,
-        deliveryMethod: 'pickup',
-        pickupLocation: selectedPickupStation,
+        deliveryMethod: 'delivery',
+        pickupLocation: sm?.name || '',
         source: 'order-link',
         status: 'pending' as const,
       };
@@ -165,6 +159,24 @@ export default function ProductOrderPage() {
       setProductOrderId(order.id);
       setSuccess(true);
       showToast('Order placed successfully!', 'success');
+
+      // Send WhatsApp order confirmation
+      if (customerPhone.trim()) {
+        const pmLabel = paymentMethods.find(p => p.value === paymentMethod)?.label || paymentMethod;
+        sendOrderConfirmation(customerPhone.trim(), {
+          id: order.orderNumber || order.id,
+          items: [{
+            name: product.name + (selectedColor || selectedSize ? ` (${[selectedColor, selectedSize].filter(Boolean).join(', ')})` : ''),
+            qty: quantity,
+            price,
+            orderLink: `${window.location.origin}/client/order/${product.id}`,
+          }],
+          total,
+          customer: customerName.trim(),
+          delivery: { method: 'delivery', address: deliveryAddress.trim() },
+          paymentInfo: { method: pmLabel },
+        }).catch(err => console.error('Failed to send WhatsApp confirmation:', err));
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to place order', 'error');
     }
@@ -346,76 +358,57 @@ export default function ProductOrderPage() {
           </div>
         </div>
 
-        {/* Pickup Location */}
+        {/* Delivery Address & Shipping */}
         <div style={{ margin: '0 20px 16px', padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="fas fa-store" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Pickup Location
+            <i className="fas fa-truck" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Delivery
           </h4>
-          <label className="form-label">Pickup Location *</label>
-          {pickupStations.length > 0 ? (
-            <>
-              <select
-                className="form-input form-select"
-                value={selectedCounty}
-                onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
-                style={{ marginBottom: 8 }}
-              >
-                <option value="">Select county</option>
-                {counties.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {selectedCounty && (
-                <select
-                  className="form-input form-select"
-                  value={selectedTown}
-                  onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
-                  style={{ marginBottom: 8 }}
-                >
-                  <option value="">Select town</option>
-                  {towns.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              )}
-              {selectedTown && (
-                <div>
-                  {stationsForTown.map(station => {
-                    const active = selectedPickupStation === station.stationName;
-                    return (
-                      <div key={station.id} onClick={() => setSelectedPickupStation(station.stationName)}
-                        style={{
-                          padding: 14, borderRadius: 'var(--radius-md)',
-                          background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                          border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                          marginBottom: 8, cursor: 'pointer',
-                        }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{
-                            width: 22, height: 22, borderRadius: '50%',
-                            border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                            background: active ? 'var(--accent-primary)' : 'transparent',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          }}>
-                            {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
-                            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
-                            {station.contactPhone && (
-                              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <input
+          <div className="form-group">
+            <label className="form-label">Delivery Address *</label>
+            <textarea
               className="form-input"
-              placeholder="Enter pickup location"
-              value={selectedPickupStation}
-              onChange={e => setSelectedPickupStation(e.target.value)}
+              placeholder="Enter your full delivery address"
+              value={deliveryAddress}
+              onChange={e => setDeliveryAddress(e.target.value)}
+              style={{ height: 'auto', padding: '14px 16px', minHeight: 70, resize: 'none', fontSize: 13, lineHeight: 1.5, fontFamily: 'inherit' }}
             />
+          </div>
+          {shippingMethods.length > 0 && (
+            <>
+              <label className="form-label" style={{ marginTop: 8 }}>Shipping Method *</label>
+              {shippingMethods.map(sm => {
+                const active = selectedShipping === sm.id;
+                return (
+                  <div key={sm.id} onClick={() => setSelectedShipping(sm.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 'var(--radius-md)',
+                      background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                      border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                      marginBottom: 8, cursor: 'pointer',
+                    }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                      background: active ? 'var(--accent-primary)' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h5 style={{ fontSize: 14, fontWeight: 700 }}>{sm.name}</h5>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: sm.price === '0' ? 'var(--success)' : 'var(--accent-primary)' }}>
+                          {sm.price === '0' ? 'FREE' : `KSh ${sm.price}`}
+                        </span>
+                        {sm.estimatedDays && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sm.estimatedDays}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
 
@@ -466,12 +459,10 @@ export default function ProductOrderPage() {
             <span style={{ fontSize: 14, fontWeight: 600 }}>KSh {subtotal.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Pickup</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>FREE</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>KSh {tax.toFixed(2)}</span>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Shipping</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: shippingCost === 0 ? 'var(--success)' : 'var(--text-primary)' }}>
+              {shippingCost === 0 ? 'FREE' : `KSh ${shippingCost.toFixed(2)}`}
+            </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 14, marginTop: 4, borderTop: '2px solid var(--border-subtle)' }}>
             <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Total</span>
