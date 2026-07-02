@@ -517,14 +517,14 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
                       type="text"
                       className="form-input"
                       value={orderLink}
-                      placeholder={`${window.location.origin}/client/order/${editProduct.id}`}
+                      placeholder={`${process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app'}/client/order/${editProduct.id}`}
                       onChange={(e) => setOrderLink(e.target.value)}
                       style={{ flex: 1, paddingLeft: 16, paddingRight: 16, fontSize: 13 }}
                     />
                     <button
                       className="btn btn-sm btn-primary"
                       onClick={() => {
-                        const link = orderLink || `${window.location.origin}/client/order/${editProduct.id}`;
+                        const link = orderLink || `${process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app'}/client/order/${editProduct.id}`;
                         navigator.clipboard.writeText(link);
                         setLinkCopied(true);
                         setTimeout(() => setLinkCopied(false), 2000);

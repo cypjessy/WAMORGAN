@@ -286,6 +286,8 @@ export default function ProductsPage() {
 
   const handleSaveProduct = useCallback(async (data: any) => {
     try {
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app';
+
       const productData: any = {
         name: data.name,
         description: data.desc || '',
@@ -310,16 +312,17 @@ export default function ProductsPage() {
       // Inline edit from detail sheet (has _firestoreId in data)
       if (data._firestoreId) {
         const pid = data._firestoreId;
-        if (data.orderLink) productData.orderLink = data.orderLink;
+        productData.orderLink = data.orderLink || `${appBaseUrl}/client/order/${pid}`;
         await productService.updateProduct(pid, productData);
         showToast('Product updated successfully!', 'success');
       } else if (formMode === 'edit' && editingProduct?._firestoreId) {
         const pid = editingProduct._firestoreId;
-        if (data.orderLink) productData.orderLink = data.orderLink;
+        productData.orderLink = data.orderLink || `${appBaseUrl}/client/order/${pid}`;
         await productService.updateProduct(pid, productData);
         showToast('Product updated successfully!', 'success');
       } else {
         const created = await productService.createProduct(productData);
+        await productService.updateProduct(created.id, { orderLink: `${appBaseUrl}/client/order/${created.id}` });
         showToast('Product added successfully!', 'success');
       }
 
