@@ -95,7 +95,7 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
 
   // ─── Handle successful connection ───────────────────────────────────────
 
-  const handleConnected = useCallback(async () => {
+  const handleConnected = useCallback(async (phoneNumber?: string) => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (pollRef.current) clearInterval(pollRef.current);
 
@@ -106,17 +106,22 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
       showToast?.('Failed to configure webhook — you can set it up in Settings', 'error');
     }
 
-    // Fetch and save Evolution credentials to Firestore
+    // Save instance name and connection state to Firestore
     try {
-      const apiKey = await fetchInstanceApiKey(instanceName);
-      if (apiKey) {
-        await businessProfileService.saveProfile({
-          whatsappInstanceName: instanceName,
-        });
-        console.log('[WhatsAppConnect] Saved Evolution credentials to Firestore');
-      }
+      await fetchInstanceApiKey(instanceName);
+      await businessProfileService.saveProfile({
+        whatsappInstanceName: instanceName,
+        whatsappConnection: {
+          instanceName,
+          state: 'open',
+          phone: phoneNumber || '',
+          lastChecked: new Date(),
+          isConnected: true,
+        },
+      } as any);
+      console.log('[WhatsAppConnect] Saved connection state to Firestore');
     } catch {
-      console.warn('[WhatsAppConnect] Failed to save instance credentials');
+      console.warn('[WhatsAppConnect] Failed to save connection state');
     }
 
     setStep('connected');
@@ -129,10 +134,10 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
     // Poll every 3 seconds to check if WhatsApp connected
     pollRef.current = setInterval(async () => {
       try {
-        const { state, isConnected } = await getConnectionState(instanceName);
+        const { state, isConnected, phone } = await getConnectionState(instanceName);
         if (isConnected) {
           if (state === 'open' || state === 'connected') {
-            await handleConnected();
+            await handleConnected(phone);
           }
         }
       } catch (err) {
@@ -154,9 +159,9 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
 
       if (response?.alreadyExists) {
         // Instance already exists — check if it's already connected
-        const { isConnected } = await getConnectionState(instanceName);
+        const { isConnected, phone } = await getConnectionState(instanceName);
         if (isConnected) {
-          await handleConnected();
+          await handleConnected(phone);
           return;
         }
         // Not connected — get a fresh QR code without deleting the instance
@@ -490,7 +495,7 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24 }}>
                 Your WhatsApp is now linked. The AI assistant is ready to handle sales.
               </p>
-              <button className="btn btn-primary" onClick={handleConnected}>
+              <button className="btn btn-primary" onClick={() => handleConnected()}>
                 <i className="fas fa-check"></i> Done
               </button>
             </div>
