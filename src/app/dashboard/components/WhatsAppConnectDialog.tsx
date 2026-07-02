@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { businessProfileService } from '@/lib/db';
 import { createInstance, createInstanceWithPairing, getQRCode, getPairingCode, getConnectionState } from '@/lib/evolution';
+import { buildApiUrl } from '@/lib/api-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
       (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
     const webhookUrl = `${deploymentUrl.replace(/\/+$/, '')}/api/webhook/evolution`;
 
-    const res = await fetch('/api/evolution/configure-webhook', {
+    const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

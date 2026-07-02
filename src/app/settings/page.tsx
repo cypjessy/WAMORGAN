@@ -7,6 +7,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
 import { businessProfileService, productSettingsService, whatsappSettingsService, ShippingMethod, PickupStation } from '@/lib/db';
 import { createInstance, createInstanceWithPairing, getConnectionState, getQRCode, getPairingCode, disconnectInstance, logoutInstance } from '@/lib/evolution';
+import { buildApiUrl } from '@/lib/api-config';
 import BottomNav from '../components/BottomNav';
 import SettingsPageHeader from './components/SettingsPageHeader';
 import LogoutDialog from './components/LogoutDialog';
@@ -329,7 +330,7 @@ export default function SettingsPage() {
     try {
       const webhookUrl = getWebhookUrl();
       const enabledEvents = getSelectedEvents();
-      const res = await fetch('/api/evolution/configure-webhook', {
+      const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

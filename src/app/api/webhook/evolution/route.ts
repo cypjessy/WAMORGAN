@@ -4,10 +4,10 @@
 // Persists conversations and messages to Firestore in real-time.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { handleProductSearch as handleProductSearchHandler } from './handlers/product-search';
-import { handleOrderStatusLookup } from './handlers/order-status';
-import { startProductBrowseFlow, handleProductBrowseInput } from './handlers/product-browse';
-import { sendPaymentInfo } from './handlers/payment-info';
+import { handleProductSearch as handleProductSearchHandler } from '@/lib/webhook-handlers/product-search';
+import { handleOrderStatusLookup } from '@/lib/webhook-handlers/order-status';
+import { startProductBrowseFlow, handleProductBrowseInput } from '@/lib/webhook-handlers/product-browse';
+import { sendPaymentInfo } from '@/lib/webhook-handlers/payment-info';
 import { logWebhookEvent, extractSenderInfo, extractMessageText, isGroupMessage } from '@/lib/webhook-logger';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';

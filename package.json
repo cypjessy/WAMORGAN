@@ -6,9 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:mobile": "bash scripts/build-mobile.sh",
+    "cap:sync": "npx cap copy",
+    "cap:open": "npx cap open android",
+    "cap:build": "npx cap build android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@fortawesome/fontawesome-free": "^7.3.0",
     "@google/generative-ai": "^0.24.1",
     "firebase": "^12.15.0",

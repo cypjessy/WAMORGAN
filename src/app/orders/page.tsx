@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { orderService, businessProfileService } from '@/lib/db';
-import { sendOrderConfirmation, sendOrderStatusUpdate, sendOrderCancellation } from '@/app/api/webhook/evolution/handlers/order-notification';
+import { sendOrderConfirmation, sendOrderStatusUpdate, sendOrderCancellation } from '@/lib/webhook-handlers/order-notification';
 import { sendMessage } from '@/lib/evolution';
 import { formatPhoneNumber } from '@/utils/phoneUtils';
 import { useInstanceName } from '@/utils/useInstanceName';

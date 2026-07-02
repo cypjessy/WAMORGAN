@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createInstance, getPairingCode, getConnectionState, fetchInstanceApiKey, getInstanceDetails, getEvolutionConfig, deleteInstance } from '@/lib/evolution';
+import { buildApiUrl } from '@/lib/api-config';
 
 interface FormData {
   firstName: string;
@@ -217,7 +218,7 @@ export default function AdminAccountPage() {
       (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
     const webhookUrl = `${deploymentUrl.replace(/\/+$/, '')}/api/webhook/evolution`;
     try {
-      const res = await fetch('/api/evolution/configure-webhook', {
+      const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

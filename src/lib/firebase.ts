@@ -1,6 +1,6 @@
 import { initializeApp, getApps, FirebaseApp, getApp } from "firebase/app";
 import { getAuth, Auth, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { initializeFirestore, Firestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBd1gk-jFVOjMm3l3qPxoEfWx9Cwidsbtk",
@@ -33,7 +33,11 @@ if (typeof window !== "undefined") {
         console.error('[Firebase] Failed to set auth persistence:', error);
       });
 
-    db = getFirestore(app);
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
   } catch (error) {
     console.error('[Firebase] Initialization error:', error);
   }
