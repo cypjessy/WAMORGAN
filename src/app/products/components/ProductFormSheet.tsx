@@ -525,7 +525,6 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
                       className="btn btn-sm btn-primary"
                       onClick={() => {
                         const link = orderLink || `${window.location.origin}/client/order/${editProduct.id}`;
-                        if (!orderLink) setOrderLink(link);
                         navigator.clipboard.writeText(link);
                         setLinkCopied(true);
                         setTimeout(() => setLinkCopied(false), 2000);
@@ -536,8 +535,8 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
                     </button>
                   </div>
                   {!orderLink && (
-                    <p style={{ fontSize: 11, color: 'var(--warning)', margin: 0 }}>
-                      <i className="fas fa-info-circle"></i> No order link saved. Click Copy to generate and save.
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                      <i className="fas fa-info-circle"></i> Leave empty to use the WhatsApp auto-generated link.
                     </p>
                   )}
                 </>

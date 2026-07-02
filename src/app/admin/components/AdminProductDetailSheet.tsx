@@ -671,7 +671,6 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
             <button
               onClick={() => {
                 const link = editOrderLink || `${window.location.origin}/client/order/${product?._firestoreId}`;
-                if (!editOrderLink) setEditOrderLink(link);
                 navigator.clipboard.writeText(link);
                 setLinkCopied(true);
                 setTimeout(() => setLinkCopied(false), 2000);
@@ -687,8 +686,8 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
             </button>
           </div>
           {!editOrderLink && (
-            <p style={{ fontSize: 11, color: 'var(--warning)', margin: 0 }}>
-              <i className="fas fa-info-circle"></i> No order link saved. Click Copy to generate and save.
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+              <i className="fas fa-info-circle"></i> Leave empty to use the WhatsApp auto-generated link.
             </p>
           )}
         </EditCard>

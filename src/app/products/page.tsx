@@ -286,8 +286,6 @@ export default function ProductsPage() {
 
   const handleSaveProduct = useCallback(async (data: any) => {
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
       const productData: any = {
         name: data.name,
         description: data.desc || '',
@@ -313,19 +311,15 @@ export default function ProductsPage() {
       if (data._firestoreId) {
         const pid = data._firestoreId;
         if (data.orderLink) productData.orderLink = data.orderLink;
-        else productData.orderLink = `${origin}/client/order/${pid}`;
         await productService.updateProduct(pid, productData);
         showToast('Product updated successfully!', 'success');
       } else if (formMode === 'edit' && editingProduct?._firestoreId) {
         const pid = editingProduct._firestoreId;
         if (data.orderLink) productData.orderLink = data.orderLink;
-        else productData.orderLink = `${origin}/client/order/${pid}`;
         await productService.updateProduct(pid, productData);
         showToast('Product updated successfully!', 'success');
       } else {
         const created = await productService.createProduct(productData);
-        const link = `${origin}/client/order/${created.id}`;
-        await productService.updateProduct(created.id, { orderLink: link });
         showToast('Product added successfully!', 'success');
       }
 
