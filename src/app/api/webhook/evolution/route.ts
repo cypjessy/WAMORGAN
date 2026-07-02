@@ -331,23 +331,26 @@ async function markMessageAsRead(instanceName: string, phone: string, messageId:
 async function sendWhatsAppMessage(tenantId: string, phone: string, message: string): Promise<void> {
   try {
     const { url, apiKey } = getEvolutionCredentials();
+    console.log(`[Webhook] sendWhatsAppMessage: url="${url}" key=${apiKey ? apiKey.slice(0, 4) + '...' : 'MISSING'} instance="${tenantId}" phone="${phone}"`);
     if (!url || !apiKey) {
       console.warn('[Webhook] Evolution API not configured, cannot send message');
       return;
     }
     const formattedNumber = await formatJid(phone);
     const apiUrl = `${url.replace(/\/+$/, '')}/message/sendText/${tenantId}`;
+    console.log(`[Webhook] Calling Evolution API: POST ${apiUrl.replace(url, '(hidden)')}`);
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       body: JSON.stringify({ number: formattedNumber, text: message }),
     });
+    const resText = await res.text().catch(() => '');
+    console.log(`[Webhook] Evolution API response: status=${res.status} body="${resText.substring(0, 200)}"`);
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error(`[Webhook] Send message failed (${res.status}): ${errText}`);
+      console.error(`[Webhook] Send message failed (${res.status}): ${resText}`);
     }
-  } catch (error) {
-    console.error('[Webhook] Failed to send WhatsApp message:', error);
+  } catch (error: any) {
+    console.error('[Webhook] Failed to send WhatsApp message:', error?.message);
   }
 }
 
@@ -355,27 +358,30 @@ async function sendWhatsAppMessage(tenantId: string, phone: string, message: str
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
+  const requestId = Math.random().toString(36).slice(2, 8);
   let tenantId = 'default';
   let phone = '';
   let messageText = '';
 
   try {
     const webhookData = await request.json();
-    console.log('[Webhook] Received event:', webhookData.event || webhookData.eventType);
-    console.log('[Webhook] Raw data keys:', Object.keys(webhookData).join(', '));
-    console.log('[Webhook] Data type:', Array.isArray(webhookData.data) ? 'array' : typeof webhookData.data);
-    console.log('[Webhook] Payload preview:', JSON.stringify(webhookData).slice(0, 500));
+    console.log(`[Webhook][${requestId}] Received event:`, webhookData.event || webhookData.eventType);
+    console.log(`[Webhook][${requestId}] Raw keys:`, Object.keys(webhookData).join(', '));
+    console.log(`[Webhook][${requestId}] Data type:`, Array.isArray(webhookData.data) ? 'array' : typeof webhookData.data);
+    console.log(`[Webhook][${requestId}] Full payload:`, JSON.stringify(webhookData));
 
     // Extract instance name from webhook data
     const instanceName = webhookData.instance || webhookData.instanceName || webhookData.instance_id || webhookData.instanceId || 'default';
     tenantId = instanceName;
+    console.log(`[Webhook][${requestId}] Instance: "${instanceName}"`);
 
     // ─── Handle CONNECTION_UPDATE events ──────────────────────────────────
     const eventType = webhookData.event || webhookData.eventType || '';
     if (eventType === 'CONNECTION_UPDATE' || webhookData.event === 'connection.update') {
       const connData = Array.isArray(webhookData?.data) ? webhookData.data[0] || {} : (webhookData?.data || webhookData);
       const state = connData?.state || webhookData?.state || 'unknown';
-      const phone = connData?.phone?.number || webhookData?.phone?.number || '';
+      const connPhone = connData?.phone?.number || webhookData?.phone?.number || '';
+      console.log(`[Webhook][${requestId}] CONNECTION_UPDATE: state="${state}" phone="${connPhone}"`);
       const db = await getAdminDb();
       if (db) {
         const Timestamp = await getTimestamp();
@@ -383,12 +389,15 @@ export async function POST(request: NextRequest) {
           whatsappConnection: {
             instanceName,
             state,
-            phone,
+            phone: connPhone,
             lastChecked: Timestamp.now(),
             isConnected: state === 'open' || state === 'connected',
           },
           updatedAt: Timestamp.now(),
         }, { merge: true });
+        console.log(`[Webhook][${requestId}] CONNECTION_UPDATE saved to Firestore`);
+      } else {
+        console.log(`[Webhook][${requestId}] CONNECTION_UPDATE: no Firestore DB`);
       }
       return NextResponse.json({ ok: true, event: 'CONNECTION_UPDATE', state });
     }
@@ -399,33 +408,48 @@ export async function POST(request: NextRequest) {
     //   { data: { messages: [...] } }   → object with messages array
     //   { data: { ... } }               → single message object
     let rawData = webhookData.data || webhookData;
+    const originalDataType = Array.isArray(webhookData.data) ? 'array' : (webhookData.data?.messages ? 'messages-array' : typeof webhookData.data);
     if (Array.isArray(rawData)) {
+      console.log(`[Webhook][${requestId}] Data is an array (${rawData.length} items), taking first`);
       rawData = rawData[0] || {};
     } else if (rawData?.messages && Array.isArray(rawData.messages)) {
+      console.log(`[Webhook][${requestId}] Data has .messages array (${rawData.messages.length} items), taking first`);
       rawData = rawData.messages[0] || {};
+    } else {
+      console.log(`[Webhook][${requestId}] Data is a single object, using directly`);
     }
     const msg = rawData;
     const key = msg.key || {};
 
+    console.log(`[Webhook][${requestId}] Extracted msg keys:`, Object.keys(msg).join(', '));
+    console.log(`[Webhook][${requestId}] msg.key:`, JSON.stringify(key));
+    console.log(`[Webhook][${requestId}] msg.message:`, JSON.stringify(msg.message));
+
     phone = extractSenderInfo(msg).phone;
     messageText = extractMessageText(msg);
+    console.log(`[Webhook][${requestId}] Extracted phone="${phone}" text="${messageText}"`);
 
-    // Skip group messages
-    if (isGroupMessage(msg)) {
-      return NextResponse.json({ ok: true, ignored: true });
+    // Check for group message
+    const isGroup = isGroupMessage(msg);
+    console.log(`[Webhook][${requestId}] isGroup=${isGroup} fromMe=${key.fromMe} remoteJid=${key.remoteJid}`);
+    if (isGroup) {
+      console.log(`[Webhook][${requestId}] Ignoring group message`);
+      return NextResponse.json({ ok: true, ignored: true, reason: 'group' });
     }
 
     // Skip status broadcasts
     if (key.fromMe || key.remoteJid === 'status@broadcast') {
-      return NextResponse.json({ ok: true, ignored: true });
+      console.log(`[Webhook][${requestId}] Ignoring fromMe=${key.fromMe} or status broadcast`);
+      return NextResponse.json({ ok: true, ignored: true, reason: key.fromMe ? 'fromMe' : 'status' });
     }
 
     // Skip empty messages (image/video without caption)
     if (!messageText) {
-      return NextResponse.json({ ok: true, ignored: true });
+      console.log(`[Webhook][${requestId}] Ignoring empty message (no text extracted)`);
+      return NextResponse.json({ ok: true, ignored: true, reason: 'empty' });
     }
 
-    console.log(`[Webhook] From: ${phone}, Message: "${messageText.slice(0, 100)}"`);
+    console.log(`[Webhook][${requestId}] Processing message from ${phone}: "${messageText.slice(0, 100)}"`);
 
     // Persist to Firestore: get or create conversation + save customer message
     let conversationId = phone;
@@ -435,9 +459,11 @@ export async function POST(request: NextRequest) {
     if (senderInfo.pushName) customerName = senderInfo.pushName;
 
     try {
+      console.log(`[Webhook][${requestId}] Persisting to Firestore...`);
       const conv = await getOrCreateConversation(phone, customerName);
       conversationId = conv.id;
       isNewConversation = conv.isNew;
+      console.log(`[Webhook][${requestId}] Conversation: id="${conversationId}" isNew=${isNewConversation}`);
       await saveMessageToFirestore(conversationId, {
         type: 'received',
         text: messageText,
@@ -445,38 +471,57 @@ export async function POST(request: NextRequest) {
         ai: false,
       });
       await updateConversationLastMessage(conversationId, messageText, true);
+      console.log(`[Webhook][${requestId}] Message saved to Firestore`);
       // Mark message as read on WhatsApp
       if (key.id) {
-        markMessageAsRead(instanceName, phone, key.id).catch(() => {});
+        console.log(`[Webhook][${requestId}] Marking message ${key.id} as read...`);
+        markMessageAsRead(instanceName, phone, key.id).catch((e: any) => {
+          console.log(`[Webhook][${requestId}] Mark read failed (non-critical):`, e?.message);
+        });
       }
-    } catch (err) {
-      console.error('[Webhook] Failed to persist incoming message:', err);
+    } catch (err: any) {
+      console.error(`[Webhook][${requestId}] Failed to persist incoming message:`, err?.message);
     }
 
     // ─── Automation: send welcome/auto-reply/away ─────────────────────────
+    console.log(`[Webhook][${requestId}] Checking automation messages (isNew=${isNewConversation})...`);
     const automationResponse = await sendAutomationMessages(
       isNewConversation, phone, instanceName, conversationId
     );
+    console.log(`[Webhook][${requestId}] Automation result:`, automationResponse ? `"${automationResponse.substring(0, 50)}..."` : 'null');
 
     // Send typing indicator before processing
-    await sendTypingIndicatorViaAPI(instanceName, phone, 'composing').catch(() => {});
+    console.log(`[Webhook][${requestId}] Sending typing indicator...`);
+    await sendTypingIndicatorViaAPI(instanceName, phone, 'composing').catch((e: any) => {
+      console.log(`[Webhook][${requestId}] Typing indicator failed (non-critical):`, e?.message);
+    });
 
     // Process the message based on flow state
     const flowState = await getFlowState(phone, instanceName);
+    console.log(`[Webhook][${requestId}] Flow state:`, flowState ? flowState.step : 'null');
     let response = await processMessage(messageText, flowState, phone, instanceName);
+    console.log(`[Webhook][${requestId}] processMessage returned:`, response ? `"${response.substring(0, 50)}..."` : 'null');
 
     // If an automation message was already sent (welcome/auto-reply), suppress the
     // main menu to avoid double-greeting the customer. Command responses still go through.
-    if (response === buildMainMenu() && automationResponse) {
+    const isMainMenu = response === buildMainMenu();
+    if (isMainMenu && automationResponse) {
+      console.log(`[Webhook][${requestId}] Suppressing main menu (automation already sent)`);
       response = null;
     }
 
     // Stop typing indicator
-    await sendTypingIndicatorViaAPI(instanceName, phone, 'paused').catch(() => {});
+    await sendTypingIndicatorViaAPI(instanceName, phone, 'paused').catch((e: any) => {
+      console.log(`[Webhook][${requestId}] Stop typing failed (non-critical):`, e?.message);
+    });
 
     // If there's a response, send it via WhatsApp + persist to Firestore
     if (response) {
+      console.log(`[Webhook][${requestId}] Sending reply via Evolution API...`);
+      const sendStart = Date.now();
       await sendWhatsAppMessage(instanceName, phone, response);
+      const sendDuration = Date.now() - sendStart;
+      console.log(`[Webhook][${requestId}] Reply sent (${sendDuration}ms)`);
 
       try {
         await saveMessageToFirestore(conversationId, {
@@ -486,10 +531,16 @@ export async function POST(request: NextRequest) {
           ai: true,
         });
         await updateConversationLastMessage(conversationId, response, false);
-      } catch (err) {
-        console.error('[Webhook] Failed to persist bot response:', err);
+        console.log(`[Webhook][${requestId}] Reply saved to Firestore`);
+      } catch (err: any) {
+        console.error(`[Webhook][${requestId}] Failed to persist bot response:`, err?.message);
       }
+    } else {
+      console.log(`[Webhook][${requestId}] No response to send (response was null)`);
     }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`[Webhook][${requestId}] Done in ${totalDuration}ms`);
 
     // Log success
     await logWebhookEvent({
@@ -497,21 +548,23 @@ export async function POST(request: NextRequest) {
       eventType: 'messages.upsert',
       phone,
       message: messageText,
-      processingTimeMs: Date.now() - startTime,
+      processingTimeMs: totalDuration,
       status: 'success',
     });
 
     return NextResponse.json({ ok: true });
 
   } catch (error: any) {
-    console.error('[Webhook] Error:', error);
+    const totalDuration = Date.now() - startTime;
+    console.error(`[Webhook][${requestId}] ERROR after ${totalDuration}ms:`, error?.message);
+    console.error(`[Webhook][${requestId}] Error stack:`, error?.stack);
 
     await logWebhookEvent({
       tenantId,
       eventType: 'messages.upsert',
       phone,
       message: messageText,
-      processingTimeMs: Date.now() - startTime,
+      processingTimeMs: totalDuration,
       status: 'error',
       errorMessage: error.message,
     });
