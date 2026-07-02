@@ -157,15 +157,16 @@ export async function startProductBrowseFlow(
       }
       if (catMap.size > 0) {
         categories = Array.from(catMap.entries()).map(([name, cat]) => {
-          const brands = [...new Set(cat.products.map((p: any) => p.brand).filter(Boolean))] as string[];
+          // Extract unique subcategories from products in this category
+          const subcategories = [...new Set(cat.products.map((p: any) => p.subcategory).filter(Boolean))] as string[];
           allCategoryProducts[name] = cat.products;
           return {
             name,
             slug: name.toLowerCase().replace(/\s+/g, '-'),
             icon: '📦',
             productCount: cat.products.length,
-            subcategories: brands,
-            brands,
+            subcategories,
+            brands: [...new Set(cat.products.map((p: any) => p.brand).filter(Boolean))] as string[],
           };
         });
       }
@@ -308,7 +309,7 @@ async function handleCategorySelection(
 
     await deps.stopTyping(tenantId, phone);
     await deps.sendMessage(tenantId, phone,
-      `📂 *${selectedCat.name}*\n\nChoose a brand:\n\n${subList}\n\n0️⃣ Back to categories`
+      `📂 *${selectedCat.name}*\n\nChoose a subcategory:\n\n${subList}\n\n0️⃣ Back to categories`
     );
 
     await deps.setFlowState(tenantId, phone, {
@@ -353,20 +354,20 @@ async function handleSubcategorySelection(
 
   await deps.stopTyping(tenantId, phone);
 
-  const selectedBrand = subcategories[num - 1];
+  const selectedSub = subcategories[num - 1];
   const allProducts = selections.allCategoryProducts?.[selections.categoryName] || [];
-  const brandProducts = allProducts.filter(
-    (p: any) => (p.brand || '').toLowerCase() === selectedBrand.toLowerCase()
+  const filteredProducts = allProducts.filter(
+    (p: any) => (p.subcategory || '').toLowerCase() === selectedSub.toLowerCase()
   );
 
-  if (brandProducts.length === 0) {
+  if (filteredProducts.length === 0) {
     await deps.sendMessage(tenantId, phone,
-      `📦 *${selectedBrand}*\n\nNo products found for this brand.\n\n0️⃣ Back to categories`
+      `📦 *${selectedSub}*\n\nNo products found in this subcategory.\n\n0️⃣ Back to categories`
     );
     return;
   }
 
-  await showCategoryProducts(tenantId, phone, selectedBrand, brandProducts, deps, selections);
+  await showCategoryProducts(tenantId, phone, selectedSub, filteredProducts, deps, selections);
 }
 
 export async function handleProductPagination(
