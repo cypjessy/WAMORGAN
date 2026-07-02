@@ -288,7 +288,7 @@ export default function ProductsPage() {
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-      const productData: Record<string, any> = {
+      const productData: any = {
         name: data.name,
         description: data.desc || '',
         price: parseFloat(data.price) || 0,

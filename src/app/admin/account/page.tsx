@@ -208,29 +208,6 @@ export default function AdminAccountPage() {
     }
   };
 
-  // ─── Connection Polling — checks Evolution API every 3s ───
-  useEffect(() => {
-    if (connectionStatus !== 'qr' && connectionStatus !== 'pairing') return;
-    if (!instanceName) return;
-    const interval = setInterval(async () => {
-      try {
-        const state = await getConnectionState(instanceName);
-        if (state.isConnected) {
-          clearInterval(interval);
-          await handleWhatsAppConnected();
-        }
-      } catch {}
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [connectionStatus, instanceName, handleWhatsAppConnected]);
-
-  // ─── Pairing countdown ───
-  useEffect(() => {
-    if (connectionStatus !== 'pairing' || pairingCountdown <= 0) return;
-    const timer = setTimeout(() => setPairingCountdown(p => p - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [connectionStatus, pairingCountdown]);
-
   // ─── WhatsApp Connected Handler (matching WAMORGAN's onConnected) ───
   const handleWhatsAppConnected = async () => {
     if (!instanceName) return;
@@ -287,6 +264,29 @@ export default function AdminAccountPage() {
     setConnectionStatus('connected');
     setCurrentStep(4);
   };
+
+  // ─── Connection Polling — checks Evolution API every 3s ───
+  useEffect(() => {
+    if (connectionStatus !== 'qr' && connectionStatus !== 'pairing') return;
+    if (!instanceName) return;
+    const interval = setInterval(async () => {
+      try {
+        const state = await getConnectionState(instanceName);
+        if (state.isConnected) {
+          clearInterval(interval);
+          await handleWhatsAppConnected();
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [connectionStatus, instanceName, handleWhatsAppConnected]);
+
+  // ─── Pairing countdown ───
+  useEffect(() => {
+    if (connectionStatus !== 'pairing' || pairingCountdown <= 0) return;
+    const timer = setTimeout(() => setPairingCountdown(p => p - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [connectionStatus, pairingCountdown]);
 
   const handleSkipWhatsApp = () => {
     setCurrentStep(4);

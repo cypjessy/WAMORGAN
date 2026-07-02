@@ -405,6 +405,20 @@ export default function SettingsPage() {
     }
   };
 
+  const handleConnected = async () => {
+    setIsConnected(true);
+    setConnectionStatus('connected');
+
+    // Auto-configure the webhook on the Evolution instance
+    try {
+      await updateWebhookConfig();
+      showToast('WhatsApp connected! Webhook configured.', 'success');
+    } catch (err) {
+      console.error('Failed to set webhook after connection:', err);
+      showToast('WhatsApp connected, but webhook setup failed', 'error');
+    }
+  };
+
   // Connection polling — checks real connection state
   useEffect(() => {
     if (connectionStatus !== 'qr' && connectionStatus !== 'pairing') return;
@@ -428,20 +442,6 @@ export default function SettingsPage() {
     const timer = setTimeout(() => setPairingCountdown(p => p - 1), 1000);
     return () => clearTimeout(timer);
   }, [connectionStatus, pairingCountdown]);
-
-  const handleConnected = async () => {
-    setIsConnected(true);
-    setConnectionStatus('connected');
-
-    // Auto-configure the webhook on the Evolution instance
-    try {
-      await updateWebhookConfig();
-      showToast('WhatsApp connected! Webhook configured.', 'success');
-    } catch (err) {
-      console.error('Failed to set webhook after connection:', err);
-      showToast('WhatsApp connected, but webhook setup failed', 'error');
-    }
-  };
 
   const handleDisconnect = async () => {
     try {
