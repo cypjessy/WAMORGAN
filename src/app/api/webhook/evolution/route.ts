@@ -296,7 +296,7 @@ function buildMainMenu(): string {
 }
 
 function buildOrderStatusMenu(): string {
-  return `📦 *Order Status*\n\nSend me your *Order ID* (e.g., ORD-2841) and I'll check the status for you.\n\nOr type *0* to go back to the main menu.`;
+  return `📦 *Order Status*\n\nI've checked for orders under your number. Reply with the number of an order to see details, or type *0* to go back to the main menu.`;
 }
 
 // ─── Send Message Via Evolution API ─────────────────────────────────────────
@@ -689,11 +689,15 @@ const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? 
     }
 
     case '2':
-      await setFlowState(phone, instanceName, {
-        step: 'order_status',
-        data: {},
+      // Immediately look up and show orders for this phone number
+      await handleOrderStatusLookup(instanceName, phone, '', {
+        sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
+        startTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
+        stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
+        setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
+        getOrders: fetchOrders,
       });
-      return buildOrderStatusMenu();
+      return null;
 
     case '3':
       return `📝 *Place an Order*\n\nTo place an order, please contact our team directly:\n📞 Call/WhatsApp: *+254 700 000 000*\n✉️ Email: *orders@sellflow.ai*\n\nOr browse our products and we'll help you order!`;

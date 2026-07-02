@@ -483,6 +483,40 @@
 }
 .message-status.read { color: #60dfff; }
 
+/* Message Delete Button */
+.msg-delete-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0;
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.message-bubble:hover .msg-delete-btn,
+.message-bubble:focus-within .msg-delete-btn {
+  opacity: 0.5;
+}
+.msg-delete-btn:hover,
+.msg-delete-btn:focus-visible {
+  opacity: 1 !important;
+  color: var(--error) !important;
+  background: rgba(239, 68, 68, 0.1);
+}
+.message-bubble.sent .msg-delete-btn {
+  color: rgba(255,255,255,0.6);
+}
+.message-bubble.received .msg-delete-btn {
+  color: var(--text-muted);
+}
+
 /* Typing Indicator */
 .typing-indicator {
   display: flex;

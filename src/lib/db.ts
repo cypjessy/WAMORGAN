@@ -610,6 +610,14 @@ export const conversationService = {
   async updateConversation(conversationId: string, data: Partial<Conversation>): Promise<void> {
     await setDoc(doc(db, "conversations", conversationId), { ...cleanData(data), updatedAt: serverTimestamp() }, { merge: true });
   },
+
+  async deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    await deleteDoc(doc(db, "messages", messageId));
+  },
+
+  async markConversationAsRead(conversationId: string): Promise<void> {
+    await setDoc(doc(db, "conversations", conversationId), { unread: 0, updatedAt: serverTimestamp() }, { merge: true });
+  },
 };
 
 // ─── Service: WhatsApp Settings (shared single doc) ─────────────────────────
@@ -721,6 +729,10 @@ export const supportTicketService = {
 
   async updateTicket(ticketId: string, data: Partial<SupportTicket>): Promise<void> {
     await setDoc(doc(db, "supportTickets", ticketId), { ...cleanData(data), updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async deleteMessage(ticketId: string, messageId: string): Promise<void> {
+    await deleteDoc(doc(db, "supportMessages", messageId));
   },
 };
 

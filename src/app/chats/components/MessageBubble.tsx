@@ -17,6 +17,7 @@ interface MessageBubbleProps {
   ai?: boolean;
   product?: ProductData;
   onAddToCart?: () => void;
+  onDelete?: () => void;
 }
 
 // ─── WhatsApp Markdown Parser ───────────────────────────────────────────────
@@ -58,7 +59,7 @@ function formatWhatsAppText(text: string): React.ReactNode {
   ));
 }
 
-export default function MessageBubble({ type, text, time, status, ai, product, onAddToCart }: MessageBubbleProps) {
+export default function MessageBubble({ type, text, time, status, ai, product, onAddToCart, onDelete }: MessageBubbleProps) {
   if (product) {
     return (
       <div className={`message-row ${type}`}>
@@ -80,6 +81,9 @@ export default function MessageBubble({ type, text, time, status, ai, product, o
             {type === 'sent' && (
               <span className={`message-status ${status || ''}`}><i className="fas fa-check-double"></i></span>
             )}
+            <button className="msg-delete-btn" onClick={(e) => { e.stopPropagation(); onDelete?.(); }} title="Delete message">
+              <i className="fas fa-trash-alt"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -98,6 +102,9 @@ export default function MessageBubble({ type, text, time, status, ai, product, o
           {type === 'sent' && (
             <span className={`message-status ${status || ''}`}><i className="fas fa-check-double"></i></span>
           )}
+          <button className="msg-delete-btn" onClick={(e) => { e.stopPropagation(); onDelete?.(); }} title="Delete message">
+            <i className="fas fa-trash-alt"></i>
+          </button>
         </div>
       </div>
     </div>

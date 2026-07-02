@@ -293,6 +293,7 @@ export default function ChatsPage() {
   const [mediaPreviewEmoji, setMediaPreviewEmoji] = useState('');
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [deleteMsgTarget, setDeleteMsgTarget] = useState<{ convId: string; msgIndex: number } | null>(null);
 
   // ─── Toast ─────────────────────────────────────────────────────────────────
   const [toastVisible, setToastVisible] = useState(false);
@@ -356,9 +357,12 @@ export default function ChatsPage() {
   const openChat = useCallback((id: string) => {
     setActiveChatId(id);
     setInChatView(true);
-    // Mark unread as 0 locally
+    // Mark unread as 0 locally + persist to Firestore
     if (channel === 'whatsapp') {
       setConversations(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c));
+      conversationService.markConversationAsRead(id).catch(err =>
+        console.error('Failed to mark conversation as read:', err)
+      );
     } else {
       setTickets(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c));
     }
@@ -431,6 +435,53 @@ export default function ChatsPage() {
       showToast('Failed to send catalog', 'error');
     }
   }, [activeChatId, activeConv, channel, instanceName, handleSendMessage, showToast]);
+
+  const handleDeleteMessage = useCallback((msgIndex: number) => {
+    if (!activeChatId) return;
+    if (!activeMessages[msgIndex]) return;
+    setDeleteMsgTarget({ convId: activeChatId, msgIndex });
+  }, [activeChatId, channel, activeMessages]);
+
+  const handleConfirmDeleteMessage = useCallback(async () => {
+    if (!deleteMsgTarget) return;
+    const { convId } = deleteMsgTarget;
+    try {
+      if (channel === 'whatsapp') {
+        // Get the messages snapshot to find actual doc ID
+        const dbMessages = await conversationService.getMessages(convId);
+        // Find message by matching from activeMessages state
+        const msgIndex = deleteMsgTarget.msgIndex;
+        const localMsg = activeMessages[msgIndex];
+        if (localMsg) {
+          // Match by content to find the Firestore doc
+          const match = dbMessages.find(m => m.text === localMsg.text && m.time === localMsg.time && m.type === localMsg.type);
+          if (match?.id) {
+            await conversationService.deleteMessage(convId, match.id);
+            showToast('Message deleted', 'success');
+          } else {
+            showToast('Could not find message to delete', 'error');
+          }
+        }
+      } else {
+        const dbMessages = await supportTicketService.getMessages(convId);
+        const msgIndex = deleteMsgTarget.msgIndex;
+        const localMsg = activeMessages[msgIndex];
+        if (localMsg) {
+          const match = dbMessages.find(m => m.text === localMsg.text && m.time === localMsg.time && m.type === localMsg.type);
+          if (match?.id) {
+            await supportTicketService.deleteMessage(convId, match.id);
+            showToast('Message deleted', 'success');
+          } else {
+            showToast('Could not find message to delete', 'error');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      showToast('Failed to delete message', 'error');
+    }
+    setDeleteMsgTarget(null);
+  }, [deleteMsgTarget, channel, activeMessages, showToast]);
 
   const handleAttachAction = useCallback((action: string) => {
     setAttachOpen(false);
@@ -510,6 +561,7 @@ export default function ChatsPage() {
                     ai={msg.ai}
                     product={msg.product}
                     onAddToCart={() => showToast('Product added to cart', 'success')}
+                    onDelete={() => handleDeleteMessage(i)}
                   />
                 );
               })}
@@ -555,6 +607,26 @@ export default function ChatsPage() {
       <TemplateSheet open={templateOpen} onClose={() => setTemplateOpen(false)} onSendTemplate={handleSendTemplate} onSendCatalog={handleSendCatalog} />
       <MediaPreview open={mediaPreviewOpen} emoji={mediaPreviewEmoji} onClose={() => setMediaPreviewOpen(false)} />
       <BlockDialog open={blockDialogOpen} onClose={() => setBlockDialogOpen(false)} onConfirm={() => { setBlockDialogOpen(false); showToast('Contact blocked', 'success'); }} />
+
+      {/* Delete Message Dialog */}
+      <div className={`dialog-overlay ${deleteMsgTarget ? 'active' : ''}`} onClick={() => setDeleteMsgTarget(null)}>
+        <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
+          <div className="dialog-icon danger" style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--error-soft)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>
+            <i className="fas fa-trash-alt"></i>
+          </div>
+          <h3>Delete Message?</h3>
+          <p>This will permanently delete this message from the conversation.</p>
+          <div className="dialog-actions">
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setDeleteMsgTarget(null)}>Cancel</button>
+            <button className="btn" style={{
+              flex: 1, background: 'var(--error)', color: 'white', border: 'none',
+              borderRadius: 'var(--radius-sm)', height: 48, fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+            }} onClick={handleConfirmDeleteMessage}>
+              <i className="fas fa-trash-alt"></i> Delete
+            </button>
+          </div>
+        </div>
+      </div>
       <AiDialog open={aiDialogOpen} onClose={() => setAiDialogOpen(false)} onConfirm={() => { setAiDialogOpen(false); showToast('AI Assistant activated', 'success'); }} />
       <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
       <Snackbar visible={toastVisible} message={toastMessage} type={toastType} />
