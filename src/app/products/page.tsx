@@ -286,7 +286,7 @@ export default function ProductsPage() {
 
   const handleSaveProduct = useCallback(async (data: any) => {
     try {
-      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app';
+      const appBaseUrl = 'https://wamorgan.vercel.app';
 
       const productData: any = {
         name: data.name,

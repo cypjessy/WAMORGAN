@@ -265,8 +265,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
     setEditTrackInventory(product.trackInventory !== false);
     setEditAllowWhatsApp(product.allowWhatsApp !== false);
     setEditVariants(product.variants || []);
-    const prodUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app';
-    setEditOrderLink((product.orderLink || '').replace(/^https?:\/\/localhost(:\d+)?/i, prodUrl).replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, prodUrl));
+    const prodUrl = 'https://wamorgan.vercel.app';
+    const existing = (product.orderLink || '').replace(/^https?:\/\/localhost(:\d+)?/i, prodUrl).replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, prodUrl);
+    setEditOrderLink(existing || `${prodUrl}/client/order/${product._firestoreId}`);
     setEditImages([]);
 
     // Resolve category
@@ -659,7 +660,7 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
             <input
               type="text"
               value={editOrderLink}
-              placeholder={`${process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app'}/client/order/${product?._firestoreId}`}
+              placeholder={`https://wamorgan.vercel.app/client/order/${product?._firestoreId}`}
               onChange={(e) => setEditOrderLink(e.target.value)}
               style={{
                 flex: 1, height: 40, padding: '0 12px',
@@ -671,7 +672,7 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
             />
             <button
               onClick={() => {
-                const link = editOrderLink || `${process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app'}/client/order/${product?._firestoreId}`;
+                const link = editOrderLink || `https://wamorgan.vercel.app/client/order/${product?._firestoreId}`;
                 navigator.clipboard.writeText(link);
                 setLinkCopied(true);
                 setTimeout(() => setLinkCopied(false), 2000);
