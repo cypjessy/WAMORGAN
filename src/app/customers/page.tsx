@@ -43,7 +43,6 @@ export default function CustomersPage() {
         name: c.name,
         email: c.email,
         phone: c.phone,
-        whatsapp: c.whatsapp,
         address: c.address,
         segment: c.segment || 'regular',
         spent: c.spent || 0,
@@ -204,18 +203,16 @@ export default function CustomersPage() {
     } catch (err) {
       console.error('Failed to send customer welcome:', err);
     }
-  }, []);
+  }, [instanceName]);
 
   const handleSaveCustomer = useCallback(async (data: any) => {
     try {
       const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
       const phone = formatPhoneNumber(data.phone || '');
-      const whatsapp = formatPhoneNumber(data.whatsApp || '');
       const customerData = {
         name: fullName || 'Customer',
         email: data.email,
         phone,
-        whatsapp,
         address: data.address,
         segment: data.segment || 'regular',
         spent: 0, orders: 0, avg: 0, lastOrder: 'Never',
@@ -295,7 +292,10 @@ export default function CustomersPage() {
       </div>
 
       {/* Alphabet Index */}
-      <AlphabetIndex onLetterClick={handleAlphabetClick} />
+      <AlphabetIndex
+        availableLetters={[...new Set(filteredCustomers.map(c => c.name[0]?.toUpperCase()).filter(Boolean))]}
+        onLetterClick={handleAlphabetClick}
+      />
 
       {/* Bottom Navigation */}
       <BottomNav
@@ -336,7 +336,6 @@ export default function CustomersPage() {
           lastName: editingCustomer.name.split(' ').slice(-1).join(' '),
           email: editingCustomer.email,
           phone: editingCustomer.phone,
-          whatsApp: editingCustomer.whatsapp,
           address: editingCustomer.address,
           segment: editingCustomer.segment,
         } : null}

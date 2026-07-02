@@ -7,11 +7,9 @@ interface CustomerFormData {
   lastName?: string;
   email?: string;
   phone?: string;
-  whatsApp?: string;
   address?: string;
   segment?: string;
   waAutomation?: boolean;
-  emailNotifs?: boolean;
 }
 
 interface CustomerFormSheetProps {
@@ -36,36 +34,30 @@ export default function CustomerFormSheet({ open, mode, initialData, onClose, on
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [whatsApp, setWhatsApp] = useState('');
+  const [phone, setPhone] = useState('+254 ');
   const [address, setAddress] = useState('');
   const [segment, setSegment] = useState('regular');
   const [waAutomation, setWaAutomation] = useState(true);
-  const [emailNotifs, setEmailNotifs] = useState(true);
 
   useEffect(() => {
     if (open && mode === 'edit' && initialData) {
       setFirstName(initialData.firstName || '');
       setLastName(initialData.lastName || '');
       setEmail(initialData.email || '');
-      setPhone(initialData.phone || '');
-      setWhatsApp(initialData.whatsApp || '');
+      setPhone(initialData.phone || '+254 ');
       setAddress(initialData.address || '');
       setSegment(initialData.segment || 'regular');
       setWaAutomation(initialData.waAutomation ?? true);
-      setEmailNotifs(initialData.emailNotifs ?? true);
       setSelectedAvatar('JD');
     } else if (open && mode === 'add') {
       setFirstName('');
       setLastName('');
       setEmail('');
-      setPhone('');
-      setWhatsApp('');
+      setPhone('+254 ');
       setAddress('');
       setSegment('regular');
       setSelectedAvatar('JD');
       setWaAutomation(true);
-      setEmailNotifs(true);
     }
   }, [open, mode, initialData]);
 
@@ -77,11 +69,9 @@ export default function CustomerFormSheet({ open, mode, initialData, onClose, on
       lastName,
       email,
       phone,
-      whatsApp,
       address,
       segment,
       waAutomation,
-      emailNotifs,
     });
   };
 
@@ -149,28 +139,19 @@ export default function CustomerFormSheet({ open, mode, initialData, onClose, on
             />
           </div>
 
-          {/* Phone */}
-          <div className="form-group">
-            <div className="form-label">Phone Number</div>
-            <input
-              type="tel"
-              className="form-input"
-              placeholder="+1 234 567 890"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
-
-          {/* WhatsApp */}
+          {/* WhatsApp Number (single phone field) */}
           <div className="form-group">
             <div className="form-label">WhatsApp Number</div>
             <input
               type="tel"
               className="form-input"
-              placeholder="+1 234 567 890"
-              value={whatsApp}
-              onChange={(e) => setWhatsApp(e.target.value)}
+              placeholder="+254 712 345 678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
+            <div className="form-hint">
+              <i className="fas fa-info-circle"></i> Used for all WhatsApp communication with this customer
+            </div>
           </div>
 
           {/* Address */}
@@ -200,7 +181,7 @@ export default function CustomerFormSheet({ open, mode, initialData, onClose, on
             </select>
           </div>
 
-          {/* Toggles */}
+          {/* Toggle */}
           <div className="form-group">
             <div className="toggle-row" onClick={() => setWaAutomation(!waAutomation)}>
               <div className="toggle-label">
@@ -208,13 +189,6 @@ export default function CustomerFormSheet({ open, mode, initialData, onClose, on
                 <p>Allow AI to message this customer</p>
               </div>
               <div className={`toggle-switch ${waAutomation ? 'active' : ''}`}></div>
-            </div>
-            <div className="toggle-row" onClick={() => setEmailNotifs(!emailNotifs)}>
-              <div className="toggle-label">
-                <h4>Email Notifications</h4>
-                <p>Send order updates via email</p>
-              </div>
-              <div className={`toggle-switch ${emailNotifs ? 'active' : ''}`}></div>
             </div>
           </div>
 

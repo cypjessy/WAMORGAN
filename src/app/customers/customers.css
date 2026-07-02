@@ -302,18 +302,28 @@
     flex-direction: column;
     align-items: center;
     z-index: 50;
+    gap: 1px;
 }
-.alphabet-index span {
+.alphabet-letter {
     font-size: 9px;
     font-weight: 700;
-    color: var(--text-muted);
     padding: 1px 4px;
-    cursor: pointer;
     transition: all 0.15s ease;
+    line-height: 1.4;
 }
-.alphabet-index span:active {
+.alphabet-letter.available {
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.alphabet-letter.available:active {
     color: var(--accent-primary);
-    transform: scale(1.3);
+    transform: scale(1.4);
+}
+.alphabet-letter.empty {
+    color: transparent;
+    cursor: default;
+    pointer-events: none;
+    font-size: 7px;
 }
 
 /* ─── Empty State Override ─── */

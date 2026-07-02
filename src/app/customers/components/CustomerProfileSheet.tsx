@@ -134,9 +134,9 @@ export default function CustomerProfileSheet({
           <div className="profile-contact-section">
             {customer.phone && (
               <div className="contact-info-row">
-                <div className="contact-icon"><i className="fas fa-phone"></i></div>
+                <div className="contact-icon"><i className="fab fa-whatsapp"></i></div>
                 <div className="contact-text">
-                  <h4>Phone</h4>
+                  <h4>WhatsApp</h4>
                   <p>{customer.phone}</p>
                 </div>
                 <button className="contact-copy" onClick={() => customer.phone && navigator.clipboard.writeText(customer.phone!)}>Copy</button>
@@ -159,16 +159,6 @@ export default function CustomerProfileSheet({
                   <h4>Address</h4>
                   <p>{customer.address}</p>
                 </div>
-              </div>
-            )}
-            {customer.whatsapp && (
-              <div className="contact-info-row">
-                <div className="contact-icon"><i className="fab fa-whatsapp"></i></div>
-                <div className="contact-text">
-                  <h4>WhatsApp</h4>
-                  <p>{customer.whatsapp}</p>
-                </div>
-                <button className="contact-copy" onClick={() => customer.whatsapp && navigator.clipboard.writeText(customer.whatsapp!)}>Copy</button>
               </div>
             )}
           </div>
