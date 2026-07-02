@@ -96,6 +96,8 @@ export default function SettingsPage() {
             setMpesaBuyGoodsTill(pm.mpesa?.buyGoods?.tillNumber || '');
             setMpesaPaybillNumber(pm.mpesa?.paybill?.paybillNumber || '');
             setMpesaPaybillAccount(pm.mpesa?.paybill?.accountNumber || '');
+            setMpesaPersonalName(pm.mpesa?.personal?.name || '');
+            setMpesaPersonalPhone(pm.mpesa?.personal?.phone || '');
             setBankEnabled(pm.bank?.enabled || false);
             setBankName(pm.bank?.bankName || '');
             setBankAccountName(pm.bank?.accountName || '');
@@ -271,8 +273,9 @@ export default function SettingsPage() {
       await businessProfileService.savePaymentMethods({
         mpesa: {
           enabled: mpesaEnabled,
-          buyGoods: { enabled: mpesaEnabled && mpesaActiveTab === 'buyGoods', tillNumber: mpesaBuyGoodsTill },
-          paybill: { enabled: mpesaEnabled && mpesaActiveTab === 'paybill', paybillNumber: mpesaPaybillNumber, accountNumber: mpesaPaybillAccount },
+          buyGoods: { enabled: mpesaEnabled && mpesaBuyGoodsTill.trim().length > 0, tillNumber: mpesaBuyGoodsTill },
+          paybill: { enabled: mpesaEnabled && mpesaPaybillNumber.trim().length > 0, paybillNumber: mpesaPaybillNumber, accountNumber: mpesaPaybillAccount },
+          personal: { enabled: mpesaEnabled && mpesaPersonalName.trim().length > 0 && mpesaPersonalPhone.trim().length > 0, name: mpesaPersonalName, phone: mpesaPersonalPhone },
         },
         bank: { enabled: bankEnabled, bankName, accountName: bankAccountName, accountNumber: bankAccountNumber },
         card: { enabled: cardEnabled },

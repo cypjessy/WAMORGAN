@@ -25,11 +25,13 @@ export default function ProductOrderPage() {
 
   // Product
   const [product, setProduct] = useState<any>(null);
+  const [productOrderId, setProductOrderId] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Store config from admin settings
   const [pickupStations, setPickupStations] = useState<PickupStation[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodDef[]>([]);
+  const [rawPaymentConfig, setRawPaymentConfig] = useState<any>(null);
 
   // Form state
   const [selectedColor, setSelectedColor] = useState('');
@@ -58,6 +60,9 @@ export default function ProductOrderPage() {
   const [placing, setPlacing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [snackbar, setSnackbar] = useState({ message: '', type: 'success' as 'success' | 'error', visible: false });
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setSnackbar({ message, type, visible: true });
@@ -80,9 +85,21 @@ export default function ProductOrderPage() {
       }
       if (config) {
         setPickupStations((config.pickupStations || []).filter(s => s.isActive));
+        setRawPaymentConfig(config.paymentMethods || {});
         const pm = config.paymentMethods || {};
         const enabledPMs: PaymentMethodDef[] = [];
-        if (pm.mpesa?.enabled) enabledPMs.push({ value: 'mpesa', label: 'M-Pesa', icon: 'fas fa-mobile-screen', color: '#10b981', desc: 'Pay via M-Pesa mobile money' });
+        if (pm.mpesa?.enabled) {
+          if (pm.mpesa.buyGoods?.enabled && pm.mpesa.buyGoods.tillNumber) {
+            enabledPMs.push({ value: 'mpesa_buygoods', label: `M-Pesa Buy Goods (Till: ${pm.mpesa.buyGoods.tillNumber})`, icon: 'fas fa-store', color: '#10b981', desc: 'Pay via M-Pesa Buy Goods' });
+          }
+          if (pm.mpesa.paybill?.enabled && pm.mpesa.paybill.paybillNumber) {
+            const accountLabel = pm.mpesa.paybill.accountNumber ? ` - Acc: ${pm.mpesa.paybill.accountNumber}` : '';
+            enabledPMs.push({ value: 'mpesa_paybill', label: `M-Pesa Paybill ${pm.mpesa.paybill.paybillNumber}${accountLabel}`, icon: 'fas fa-building', color: '#10b981', desc: 'Pay via M-Pesa Paybill' });
+          }
+          if (pm.mpesa.personal?.enabled && pm.mpesa.personal.name) {
+            enabledPMs.push({ value: 'mpesa_personal', label: `M-Pesa (${pm.mpesa.personal.name})`, icon: 'fas fa-user', color: '#10b981', desc: 'Pay via M-Pesa Personal' });
+          }
+        }
         if (pm.card?.enabled) enabledPMs.push({ value: 'card', label: 'Credit/Debit Card', icon: 'fas fa-credit-card', color: 'var(--accent-primary)', desc: 'Pay with your card' });
         if (pm.bank?.enabled) enabledPMs.push({ value: 'bank', label: 'Bank Transfer', icon: 'fas fa-building-columns', color: 'var(--info)', desc: 'Transfer to our bank account' });
         if (pm.cash?.enabled) enabledPMs.push({ value: 'cod', label: 'Cash on Delivery', icon: 'fas fa-money-bill', color: 'var(--warning)', desc: 'Pay when you receive' });
@@ -145,6 +162,7 @@ export default function ProductOrderPage() {
 
       const order = await orderService.createOrder(orderData);
       setOrderId(order.orderNumber || order.id);
+      setProductOrderId(order.id);
       setSuccess(true);
       showToast('Order placed successfully!', 'success');
     } catch (err: any) {
@@ -152,6 +170,22 @@ export default function ProductOrderPage() {
     }
     setPlacing(false);
   };
+
+  const handleConfirmPayment = useCallback(async () => {
+    if (!productOrderId || !paymentMessage.trim()) return;
+    setConfirmingPayment(true);
+    try {
+      await orderService.updateOrder(productOrderId, {
+        paymentDetails: paymentMessage.trim(),
+        paymentStatus: 'pending',
+      });
+      setPaymentConfirmed(true);
+      showToast('Payment confirmation saved!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save payment confirmation', 'error');
+    }
+    setConfirmingPayment(false);
+  }, [productOrderId, paymentMessage, showToast]);
 
   if (loading) {
     return (
@@ -466,41 +500,154 @@ export default function ProductOrderPage() {
 
       {/* Success Overlay */}
       {success && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-primary)', zIndex: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-primary)', zIndex: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'auto', padding: '40px 24px' }}>
           <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'var(--success-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, position: 'relative' }}>
             <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '2px solid var(--success)', opacity: 0.3 }} />
             <i className="fas fa-check" style={{ fontSize: 44, color: 'var(--success)' }}></i>
           </div>
           <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, textAlign: 'center' }}>Order Placed!</h2>
           <p style={{ fontSize: 15, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6, maxWidth: 300, marginBottom: 8 }}>
-            Your order has been confirmed and is being processed.
+            {paymentConfirmed ? 'Payment confirmed! Your order is being processed.' : 'Complete your payment to confirm your order.'}
           </p>
-          <div style={{ padding: '12px 24px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', margin: '20px 0', width: '100%', maxWidth: 320 }}>
+          <div style={{ padding: '12px 24px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', margin: '12px 0', width: '100%', maxWidth: 320 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4, textAlign: 'center' }}>Order Number</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-primary)', textAlign: 'center', fontFamily: 'monospace' }}>#{orderId}</div>
           </div>
-          <div style={{ width: '100%', maxWidth: 320, marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Product</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{product.name}</span>
+
+          {/* Payment Instructions */}
+          {!paymentConfirmed && (
+            <div style={{ width: '100%', maxWidth: 320, marginBottom: 16 }}>
+              <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--accent-primary)', marginBottom: 16 }}>
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="fas fa-credit-card" style={{ color: 'var(--accent-primary)' }}></i> Payment Instructions
+                </h4>
+                {paymentMethod.startsWith('mpesa') && rawPaymentConfig?.mpesa ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                    <p style={{ marginBottom: 10, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Send <strong style={{ color: 'var(--accent-primary)' }}>KSh {total.toFixed(2)}</strong> via M-Pesa:
+                    </p>
+                    {paymentMethod === 'mpesa_buygoods' && rawPaymentConfig.mpesa.buyGoods?.tillNumber && (
+                      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Buy Goods Till Number</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-primary)', fontFamily: 'monospace', letterSpacing: 2 }}>{rawPaymentConfig.mpesa.buyGoods.tillNumber}</div>
+                      </div>
+                    )}
+                    {paymentMethod === 'mpesa_paybill' && rawPaymentConfig.mpesa.paybill?.paybillNumber && (
+                      <>
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Paybill Number</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-primary)', fontFamily: 'monospace', letterSpacing: 2 }}>{rawPaymentConfig.mpesa.paybill.paybillNumber}</div>
+                        </div>
+                        {rawPaymentConfig.mpesa.paybill.accountNumber && (
+                          <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Account Number</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-primary)', fontFamily: 'monospace' }}>{rawPaymentConfig.mpesa.paybill.accountNumber}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {paymentMethod === 'mpesa_personal' && (
+                      <>
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Send to</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{rawPaymentConfig.mpesa.personal.name}</div>
+                        </div>
+                        {rawPaymentConfig.mpesa.personal.phone && (
+                          <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Phone</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>{rawPaymentConfig.mpesa.personal.phone}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      After sending, paste the M-Pesa confirmation message below.
+                    </p>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    Please complete your payment using {paymentMethods.find(p => p.value === paymentMethod)?.label || paymentMethod}.
+                    Once done, paste your payment confirmation message below.
+                  </p>
+                )}
+              </div>
+
+              {/* Payment Confirmation Textarea */}
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="payment-message" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <i className="fas fa-paste" style={{ marginRight: 6 }}></i>
+                  Paste M-Pesa Confirmation Message
+                </label>
+                <textarea
+                  id="payment-message"
+                  autoFocus
+                  style={{
+                    width: '100%', minHeight: 100, padding: 14, borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-card)', border: '1.5px solid var(--border-subtle)',
+                    color: 'var(--text-primary)', fontSize: 13, fontFamily: 'monospace', lineHeight: 1.6,
+                    resize: 'vertical', outline: 'none',
+                  }}
+                  placeholder="Paste the M-Pesa confirmation message you received via SMS here..."
+                  value={paymentMessage}
+                  onChange={e => setPaymentMessage(e.target.value)}
+                />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  This helps us verify your payment and process your order faster.
+                </p>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ maxWidth: 320, width: '100%', marginBottom: 10 }}
+                onClick={handleConfirmPayment}
+                disabled={confirmingPayment || !paymentMessage.trim()}
+              >
+                <i className={confirmingPayment ? 'fas fa-spinner fa-spin' : 'fas fa-check-circle'}></i>
+                {confirmingPayment ? 'Confirming...' : 'Confirm Payment'}
+              </button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-primary)' }}>KSh {total.toFixed(2)}</span>
+          )}
+
+          {/* Payment Confirmed State */}
+          {paymentConfirmed && (
+            <div style={{ width: '100%', maxWidth: 320, marginBottom: 24 }}>
+              <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--success-soft)', border: '1px solid var(--success)', marginBottom: 16, textAlign: 'center' }}>
+                <i className="fas fa-check-circle" style={{ fontSize: 24, color: 'var(--success)', marginBottom: 8 }}></i>
+                <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>Payment Confirmed</h4>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Your M-Pesa confirmation has been saved. The admin will verify and process your order.</p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Product</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{product.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-primary)' }}>KSh {total.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Payment</span>
+                <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
+                  {paymentMethods.find(p => p.value === paymentMethod)?.label || paymentMethod}
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Payment</span>
-              <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
-                {paymentMethods.find(p => p.value === paymentMethod)?.label || paymentMethod}
-              </span>
-            </div>
-          </div>
-          <button className="btn btn-primary" style={{ maxWidth: 320, marginBottom: 10 }} onClick={() => router.push('/client/orders')}>
-            <i className="fas fa-box"></i> View My Orders
-          </button>
-          <button className="btn btn-ghost" style={{ maxWidth: 320 }} onClick={() => router.push('/client/shop')}>
-            Continue Shopping
-          </button>
+          )}
+
+          {!paymentConfirmed && (
+            <button className="btn btn-ghost" style={{ maxWidth: 320, width: '100%' }} onClick={() => router.push('/client/orders')}>
+              Skip, I'll pay later
+            </button>
+          )}
+          {paymentConfirmed && (
+            <>
+              <button className="btn btn-primary" style={{ maxWidth: 320, width: '100%', marginBottom: 10 }} onClick={() => router.push('/client/orders')}>
+                <i className="fas fa-box"></i> View My Orders
+              </button>
+              <button className="btn btn-ghost" style={{ maxWidth: 320, width: '100%' }} onClick={() => router.push('/client/shop')}>
+                Continue Shopping
+              </button>
+            </>
+          )}
         </div>
       )}
 

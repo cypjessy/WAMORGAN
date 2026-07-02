@@ -59,7 +59,7 @@ export interface BusinessProfile {
   logoUrl?: string;
   businessHours?: Record<string, { open: string; close: string; closed: boolean }>;
   paymentMethods?: {
-    mpesa?: { enabled: boolean; buyGoods?: { enabled: boolean; tillNumber?: string }; paybill?: { enabled: boolean; paybillNumber?: string; accountNumber?: string } };
+    mpesa?: { enabled: boolean; buyGoods?: { enabled: boolean; tillNumber?: string }; paybill?: { enabled: boolean; paybillNumber?: string; accountNumber?: string }; personal?: { enabled: boolean; name?: string; phone?: string } };
     bank?: { enabled: boolean; bankName?: string; accountName?: string; accountNumber?: string };
     card?: { enabled: boolean };
     cash?: { enabled: boolean };
