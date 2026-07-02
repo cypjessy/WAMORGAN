@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
     console.log('[Webhook] Payload preview:', JSON.stringify(webhookData).slice(0, 500));
 
     // Extract instance name from webhook data
-    const instanceName = webhookData.instance || webhookData.instanceName || 'default';
+    const instanceName = webhookData.instance || webhookData.instanceName || webhookData.instance_id || webhookData.instanceId || 'default';
     tenantId = instanceName;
 
     // ─── Handle CONNECTION_UPDATE events ──────────────────────────────────
