@@ -393,7 +393,7 @@ export async function POST(request: NextRequest) {
     // Evolution API sends data as an array of messages; take the first one.
     let rawData = webhookData.data || webhookData;
     if (Array.isArray(rawData)) rawData = rawData[0] || {};
-    const msg = rawData.message || rawData;
+    const msg = rawData;
     const key = msg.key || {};
 
     phone = extractSenderInfo(msg).phone;
