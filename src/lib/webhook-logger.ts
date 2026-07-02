@@ -65,6 +65,8 @@ export function extractMessageText(msg: any): string {
   return (
     message.conversation ||
     message.extendedTextMessage?.text ||
+    message.buttonsResponseMessage?.selectedButtonId ||
+    message.listResponseMessage?.singleSelectReply?.selectedRowId ||
     message.imageMessage?.caption ||
     message.videoMessage?.caption ||
     message.documentMessage?.caption ||
