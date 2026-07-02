@@ -77,14 +77,14 @@ export async function sendOrderConfirmation(
       ? `💳 *Payment Method:* ${capitalizeFirst(order.paymentInfo.method)}`
       : '';
 
-    const message = `🎉 *Order Confirmed!*\n\n` +
-      `Hi *${order.customer}*, your order has been placed successfully!\n\n` +
+    const message = `⏳ *Order Received — Awaiting Payment*\n\n` +
+      `Hi *${order.customer}*, your order has been received and is pending payment confirmation.\n\n` +
       `📦 *Order:* ${order.id}\n\n` +
       `📋 *Items:*\n${itemLines}\n\n` +
       `💰 *Total:* KSh ${order.total.toFixed(2)}\n` +
       `${deliveryInfo}\n` +
       `${paymentMethod}\n\n` +
-      `We'll keep you updated on the status. Thank you for shopping with us! 🛍️\n\n` +
+      `🕐 Your order will start processing once payment is confirmed.\n\n` +
       `Reply *STATUS ${order.id.slice(-4)}* to check your order status.`;
 
     const instanceName = await resolveInstanceName(deps);

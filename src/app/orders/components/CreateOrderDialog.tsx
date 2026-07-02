@@ -487,7 +487,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
               {discount > 0 && (
                 <div className="detail-row" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                   <span className="label">Discount</span>
-                  <span className="value" style={{ color: 'var(--success)' }}>-${discountAmount.toFixed(2)} ({discount}%)</span>
+                  <span className="value" style={{ color: 'var(--success)' }}>-KSh {discountAmount.toFixed(2)} ({discount}%)</span>
                 </div>
               )}
 
@@ -506,7 +506,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
               }}>
                 <span className="label" style={{ fontSize: 16, fontWeight: 800 }}>Total</span>
                 <span className="value" style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-primary)' }}>
-                  ${total.toFixed(2)}
+                  KSh {total.toFixed(2)}
                 </span>
               </div>
 
@@ -763,7 +763,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                              ${p.price.toFixed(2)} • {p.stock} in stock
+                              KSh {p.price.toFixed(2)} • {p.stock} in stock
                             </div>
                           </div>
                           <button style={{
@@ -802,7 +802,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
                             {item.name}
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            ${item.price.toFixed(2)} each
+                            KSh {item.price.toFixed(2)} each
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -833,7 +833,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
                           </button>
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-primary)', minWidth: 50, textAlign: 'right' }}>
-                          ${(item.price * item.qty).toFixed(2)}
+                          KSh {(item.price * item.qty).toFixed(2)}
                         </div>
                         <button
                           onClick={() => handleRemoveItem(item.productId)}
@@ -1100,7 +1100,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
                 {discount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Discount ({discount}%)</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>-${discountAmount.toFixed(2)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>-KSh {discountAmount.toFixed(2)}</span>
                   </div>
                 )}
                 {shippingCost > 0 && (
@@ -1115,7 +1115,7 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
                 }}>
                   <span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
                   <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-primary)' }}>
-                    ${total.toFixed(2)}
+                    KSh {total.toFixed(2)}
                   </span>
                 </div>
               </div>

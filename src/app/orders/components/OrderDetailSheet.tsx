@@ -207,7 +207,7 @@ export default function OrderDetailSheet({ open, order, onClose, onUpdateStatus,
                 <div className="detail-item-emoji" style={item.imageUrl ? { backgroundImage: `url(${item.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', fontSize: 0 } : {}}>{item.emoji}</div>
                 <div className="detail-item-info">
                   <h4>{item.name}</h4>
-                  <p>Qty: {item.qty} × ${item.price.toFixed(2)}</p>
+                  <p>Qty: {item.qty} × KSh {item.price.toFixed(2)}</p>
 
                 </div>
                 <div className="detail-item-price">KSh {(item.price * item.qty).toFixed(2)}</div>
@@ -302,13 +302,13 @@ export default function OrderDetailSheet({ open, order, onClose, onUpdateStatus,
           {discountPercent > 0 && (
             <div className="detail-total-row">
               <span className="label">Discount ({discountPercent}%)</span>
-              <span className="value" style={{ color: 'var(--success)' }}>-${discountAmount.toFixed(2)}</span>
+              <span className="value" style={{ color: 'var(--success)' }}>-KSh {discountAmount.toFixed(2)}</span>
             </div>
           )}
           <div className="detail-total-row grand">
             <span className="label">Total</span>
             <span className="value" style={{ color: 'var(--accent-primary)', fontSize: 22 }}>
-              ${total.toFixed(2)}
+              KSh {total.toFixed(2)}
             </span>
           </div>
 
