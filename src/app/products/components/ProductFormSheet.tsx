@@ -79,7 +79,8 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
       setActive(editProduct.active !== false);
       setTrackInventory(editProduct.trackInventory !== false);
       setAllowWhatsApp(editProduct.allowWhatsApp !== false);
-      setOrderLink(editProduct.orderLink || '');
+      const prodUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app';
+      setOrderLink((editProduct.orderLink || '').replace(/^https?:\/\/localhost(:\d+)?/i, prodUrl).replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, prodUrl));
       setSelectedCategoryId(null);
       setSelectedSubcategoryKey(null);
       setSelectedSpecs({});

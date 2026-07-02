@@ -265,7 +265,8 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
     setEditTrackInventory(product.trackInventory !== false);
     setEditAllowWhatsApp(product.allowWhatsApp !== false);
     setEditVariants(product.variants || []);
-    setEditOrderLink(product.orderLink || '');
+    const prodUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wamorgan.vercel.app';
+    setEditOrderLink((product.orderLink || '').replace(/^https?:\/\/localhost(:\d+)?/i, prodUrl).replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, prodUrl));
     setEditImages([]);
 
     // Resolve category

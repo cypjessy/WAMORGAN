@@ -108,8 +108,9 @@ function formatProductText(product: any, index: number, tenantId?: string, phone
   if (product.condition && !product.specs?.condition) text += `   ✨ Condition: ${product.condition}\n`;
   if (product.warranty) text += `   🛡️ Warranty: ${product.warranty}\n`;
 
-  if (product.orderLink) {
-    text += `   🛒 *Order here:* ${product.orderLink}\n`;
+  const prodLink = product.orderLink ? product.orderLink.replace(/^https?:\/\/localhost(:\d+)?/i, baseUrl || 'https://wamorgan.vercel.app').replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, baseUrl || 'https://wamorgan.vercel.app') : '';
+  if (prodLink) {
+    text += `   🛒 *Order here:* ${prodLink}\n`;
   } else if (tenantId && phone && baseUrl && product.id) {
     text += `   🛒 *Order here:* ${baseUrl}/order?tenant=${tenantId}&product=${product.id}&phone=${phone}\n`;
   }

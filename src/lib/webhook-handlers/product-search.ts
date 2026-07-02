@@ -202,7 +202,8 @@ export async function handleProductSearch(
         productText += `   📝 ${product.description.substring(0, 120)}${product.description.length > 120 ? '...' : ''}\n`;
       }
 
-      const orderLink = product.orderLink || `${deps.baseUrl || ''}/order?tenant=${tenantId}&product=${product.id}&phone=${phone}`;
+      const sanitizedLink = product.orderLink ? product.orderLink.replace(/^https?:\/\/localhost(:\d+)?/i, deps.baseUrl || 'https://wamorgan.vercel.app').replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, deps.baseUrl || 'https://wamorgan.vercel.app') : '';
+      const orderLink = sanitizedLink || `${deps.baseUrl || ''}/order?tenant=${tenantId}&product=${product.id}&phone=${phone}`;
       if (orderLink) {
         productText += `   🛒 *Order here:* ${orderLink}\n`;
       }
