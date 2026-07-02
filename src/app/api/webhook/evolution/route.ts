@@ -394,9 +394,16 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Extract message data ─────────────────────────────────────────────
-    // Evolution API sends data as an array of messages; take the first one.
+    // Evolution API can send messages in multiple formats:
+    //   { data: [...] }                 → array of messages
+    //   { data: { messages: [...] } }   → object with messages array
+    //   { data: { ... } }               → single message object
     let rawData = webhookData.data || webhookData;
-    if (Array.isArray(rawData)) rawData = rawData[0] || {};
+    if (Array.isArray(rawData)) {
+      rawData = rawData[0] || {};
+    } else if (rawData?.messages && Array.isArray(rawData.messages)) {
+      rawData = rawData.messages[0] || {};
+    }
     const msg = rawData;
     const key = msg.key || {};
 
