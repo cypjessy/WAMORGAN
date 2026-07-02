@@ -674,18 +674,18 @@ async function handleMenuChoice(
 ): Promise<string | null> {
   switch (choice) {
     case '1': {
-      const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'https://wamorgan.vercel.app';
-      // startProductBrowseFlow handles its own flow state internally
-      await startProductBrowseFlow(instanceName, phone, {
-        sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
-        startTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
-        stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
-        setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
-        getProducts: fetchProducts,
-        sendMedia: (tid, p, url, cap) => sendMediaViaEvolution(tid, p, url, cap),
-        baseUrl: baseAppUrl,
-      });
-      return null;
+const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://wamorgan.vercel.app');
+  // startProductBrowseFlow handles its own flow state internally
+  await startProductBrowseFlow(instanceName, phone, {
+    sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
+    startTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'composing'),
+    stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
+    setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
+    getProducts: fetchProducts,
+    sendMedia: (tid, p, url, cap) => sendMediaViaEvolution(tid, p, url, cap),
+    baseUrl: baseAppUrl,
+  });
+  return null;
     }
 
     case '2':
@@ -747,7 +747,7 @@ async function handleFlowStep(
   phone: string,
   instanceName: string
 ): Promise<string | null> {
-  const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'https://wamorgan.vercel.app';
+  const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://wamorgan.vercel.app');
   const browseDeps = {
     sendMessage: (tid: string, p: string, msg: string) => sendWhatsAppMessage(tid, p, msg),
     startTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'composing'),

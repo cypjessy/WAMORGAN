@@ -1,6 +1,3 @@
-// ─── Product Browse Handler ─────────────────────────────────────────────────
-// Handles product browsing via WhatsApp (Categories → Subcategories/Brands → Products)
-
 export interface ProductBrowseDeps {
   sendMessage: (tenantId: string, phone: string, message: string) => Promise<void>;
   startTyping: (tenantId: string, phone: string) => Promise<void>;
@@ -10,6 +7,8 @@ export interface ProductBrowseDeps {
   sendMedia?: (tenantId: string, phone: string, mediaUrl: string, caption: string) => Promise<void>;
   baseUrl?: string;
 }
+
+const PAGE_SIZE = 5;
 
 const BROWSE_CATEGORIES = [
   {
@@ -118,6 +117,22 @@ function formatProductText(product: any, index: number, tenantId?: string, phone
   return text;
 }
 
+async function sendOneProduct(
+  tenantId: string,
+  phone: string,
+  product: any,
+  displayIndex: number,
+  deps: ProductBrowseDeps
+): Promise<void> {
+  const imageUrl = product.images?.[0] || product.imageUrl || product.image;
+  const productText = formatProductText(product, displayIndex, tenantId, phone, deps.baseUrl);
+  if (imageUrl && deps.sendMedia) {
+    await deps.sendMedia(tenantId, phone, imageUrl, productText);
+  } else {
+    await deps.sendMessage(tenantId, phone, productText);
+  }
+}
+
 export async function startProductBrowseFlow(
   tenantId: string,
   phone: string,
@@ -196,6 +211,8 @@ export async function handleProductBrowseInput(
       await handleCategorySelection(tenantId, phone, message, selections, deps);
     } else if (currentStep === 'subcategory_selection') {
       await handleSubcategorySelection(tenantId, phone, message, selections, deps);
+    } else if (currentStep === 'product_pagination') {
+      await handleProductPagination(tenantId, phone, message, selections, deps);
     } else {
       await deps.stopTyping(tenantId, phone);
       await deps.sendMessage(tenantId, phone, `❌ Please reply with a number or *0* for main menu.`);
@@ -210,36 +227,54 @@ export async function handleProductBrowseInput(
 async function showCategoryProducts(
   tenantId: string,
   phone: string,
-  categoryName: string,
+  title: string,
   products: any[],
-  deps: ProductBrowseDeps
+  deps: ProductBrowseDeps,
+  selections?: any
 ): Promise<void> {
   await deps.stopTyping(tenantId, phone);
 
   if (products.length === 0) {
     await deps.sendMessage(tenantId, phone,
-      `📂 *${categoryName}*\n\nNo products available in this category.\n\n0️⃣ Back to categories`
+      `📂 *${title}*\n\nNo products available.\n\n0️⃣ Back to categories`
     );
     return;
   }
 
-  for (let i = 0; i < products.length; i++) {
-    const product = products[i];
-    const imageUrl = product.images?.[0] || product.imageUrl || product.image;
-    const productText = formatProductText(product, i + 1, tenantId, phone, deps.baseUrl);
-
-    if (imageUrl && deps.sendMedia) {
-      await deps.sendMedia(tenantId, phone, imageUrl, productText);
-    } else {
-      await deps.sendMessage(tenantId, phone, productText);
+  if (products.length <= PAGE_SIZE) {
+    for (let i = 0; i < products.length; i++) {
+      await sendOneProduct(tenantId, phone, products[i], i + 1, deps);
+      if (i < products.length - 1) await new Promise(r => setTimeout(r, 400));
     }
-
-    if (i < products.length - 1) {
-      await new Promise(r => setTimeout(r, 400));
-    }
+    await deps.sendMessage(tenantId, phone, `0️⃣ Back to categories`);
+    return;
   }
 
-  await deps.sendMessage(tenantId, phone, `0️⃣ Back to categories`);
+  for (let i = 0; i < PAGE_SIZE; i++) {
+    await sendOneProduct(tenantId, phone, products[i], i + 1, deps);
+    if (i < PAGE_SIZE - 1) await new Promise(r => setTimeout(r, 400));
+  }
+
+  const remaining = products.length - PAGE_SIZE;
+  await deps.sendMessage(tenantId, phone,
+    `1️⃣ - View More (${remaining} more)\n0️⃣ - Go back`
+  );
+
+  if (selections) {
+    await deps.setFlowState(tenantId, phone, {
+      flowName: 'product_browse',
+      currentStep: 'product_pagination',
+      selections: {
+        ...selections,
+        paginationProducts: products,
+        currentIndex: PAGE_SIZE,
+        pageSize: PAGE_SIZE,
+        totalProducts: products.length,
+        paginationTitle: title,
+      },
+      lastActivity: new Date().toISOString(),
+    });
+  }
 }
 
 async function handleCategorySelection(
@@ -288,9 +323,8 @@ async function handleCategorySelection(
       lastActivity: new Date().toISOString(),
     });
   } else {
-    // No subcategories — list products directly
     const catProducts = selections.allCategoryProducts?.[selectedCat.name] || [];
-    await showCategoryProducts(tenantId, phone, selectedCat.name, catProducts, deps);
+    await showCategoryProducts(tenantId, phone, selectedCat.name, catProducts, deps, selections);
   }
 }
 
@@ -318,7 +352,6 @@ async function handleSubcategorySelection(
 
   await deps.stopTyping(tenantId, phone);
 
-  // Find products matching this subcategory/brand
   const selectedBrand = subcategories[num - 1];
   const allProducts = selections.allCategoryProducts?.[selections.categoryName] || [];
   const brandProducts = allProducts.filter(
@@ -332,21 +365,85 @@ async function handleSubcategorySelection(
     return;
   }
 
-  for (let i = 0; i < brandProducts.length; i++) {
-    const product = brandProducts[i];
-    const imageUrl = product.images?.[0] || product.imageUrl || product.image;
-    const productText = formatProductText(product, i + 1, tenantId, phone, deps.baseUrl);
+  await showCategoryProducts(tenantId, phone, selectedBrand, brandProducts, deps, selections);
+}
 
-    if (imageUrl && deps.sendMedia) {
-      await deps.sendMedia(tenantId, phone, imageUrl, productText);
-    } else {
-      await deps.sendMessage(tenantId, phone, productText);
-    }
+export async function handleProductPagination(
+  tenantId: string,
+  phone: string,
+  message: string,
+  selections: any,
+  deps: ProductBrowseDeps
+): Promise<void> {
+  const trimmed = message.trim().toLowerCase();
 
-    if (i < brandProducts.length - 1) {
-      await new Promise(r => setTimeout(r, 400));
-    }
+  if (trimmed === '0') {
+    await deps.stopTyping(tenantId, phone);
+    throw new Error('GO_TO_MENU');
   }
 
-  await deps.sendMessage(tenantId, phone, `0️⃣ Back to categories`);
+  if (trimmed === '1' || trimmed === 'more' || trimmed === 'next') {
+    await showNextProductPage(tenantId, phone, selections, deps);
+    return;
+  }
+
+  await deps.stopTyping(tenantId, phone);
+  const remaining = (selections.totalProducts || 0) - (selections.currentIndex || 0);
+  const prompt = remaining > 0
+    ? `1️⃣ - View More (${remaining} more)\n0️⃣ - Go back`
+    : `0️⃣ - Go back`;
+  await deps.sendMessage(tenantId, phone,
+    `*Reply with a number:*\n${prompt}\n\n*Or* send a product number to order`
+  );
+}
+
+async function showNextProductPage(
+  tenantId: string,
+  phone: string,
+  selections: any,
+  deps: ProductBrowseDeps
+): Promise<void> {
+  await deps.startTyping(tenantId, phone);
+
+  const allProducts = selections.paginationProducts || [];
+  const currentIndex = selections.currentIndex || 0;
+  const pageSize = selections.pageSize || PAGE_SIZE;
+  const totalProducts = selections.totalProducts || allProducts.length;
+  const title = selections.paginationTitle || 'Products';
+
+  const pageProducts = allProducts.slice(currentIndex, currentIndex + pageSize);
+
+  if (pageProducts.length === 0) {
+    await deps.stopTyping(tenantId, phone);
+    await deps.sendMessage(tenantId, phone, "✅ You've seen all available products! Reply *0* to go back.");
+    return;
+  }
+
+  const pageNum = Math.floor(currentIndex / pageSize) + 1;
+  const header = `📂 *${title}*\n\nPage ${pageNum} - Showing ${pageProducts.length} more products:\n\n`;
+  await deps.sendMessage(tenantId, phone, header);
+
+  for (let i = 0; i < pageProducts.length; i++) {
+    await sendOneProduct(tenantId, phone, pageProducts[i], i + 1, deps);
+    if (i < pageProducts.length - 1) await new Promise(r => setTimeout(r, 400));
+  }
+
+  const remaining = totalProducts - (currentIndex + pageProducts.length);
+  if (remaining > 0) {
+    await deps.sendMessage(tenantId, phone,
+      `1️⃣ - View More (${remaining} more)\n0️⃣ - Go back`
+    );
+  } else {
+    await deps.sendMessage(tenantId, phone, `0️⃣ - Go back`);
+  }
+
+  await deps.setFlowState(tenantId, phone, {
+    flowName: 'product_browse',
+    currentStep: 'product_pagination',
+    selections: {
+      ...selections,
+      currentIndex: currentIndex + pageProducts.length,
+    },
+    lastActivity: new Date().toISOString(),
+  });
 }
