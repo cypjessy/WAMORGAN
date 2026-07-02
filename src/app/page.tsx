@@ -59,21 +59,6 @@ export default function LoginPage() {
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [toastVisible, setToastVisible] = useState(false);
 
-  // ─── Clock ──────────────────────────────────────────────────────────
-  const [clockTime, setClockTime] = useState("");
-
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClockTime(
-        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
-      );
-    };
-    update();
-    const interval = setInterval(update, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   // ─── Redirect if already logged in ──────────────────────────────────
   useEffect(() => {
     if (user) {
@@ -234,16 +219,6 @@ export default function LoginPage() {
   // ─── Render ─────────────────────────────────────────────────────────
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clockTime}</span>
-        <div className="icons">
-          <i className="fas fa-signal"></i>
-          <i className="fas fa-wifi"></i>
-          <i className="fas fa-battery-full"></i>
-        </div>
-      </div>
-
       {/* Background Effects */}
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>

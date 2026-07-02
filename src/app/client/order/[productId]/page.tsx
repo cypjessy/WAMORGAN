@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { productService, orderService, businessProfileService } from '@/lib/db';
-import type { ShippingMethod, PickupStation } from '@/lib/db';
+import type { PickupStation } from '@/lib/db';
 import Snackbar from '../../cart/components/Snackbar';
 
 const TAX_RATE = 0.08;
@@ -23,23 +23,11 @@ export default function ProductOrderPage() {
   const { user } = useAuth();
   const productId = params?.productId as string;
 
-  const [clock, setClock] = useState('9:41');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Product
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // Store config from admin settings
-  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [pickupStations, setPickupStations] = useState<PickupStation[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodDef[]>([]);
 
@@ -50,9 +38,6 @@ export default function ProductOrderPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [selectedShipping, setSelectedShipping] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
   const [selectedTown, setSelectedTown] = useState('');
   const [selectedPickupStation, setSelectedPickupStation] = useState('');
@@ -94,7 +79,6 @@ export default function ProductOrderPage() {
         if (allSizes.length > 0) setSelectedSize(allSizes[0]);
       }
       if (config) {
-        setShippingMethods(config.shippingMethods || []);
         setPickupStations((config.pickupStations || []).filter(s => s.isActive));
         const pm = config.paymentMethods || {};
         const enabledPMs: PaymentMethodDef[] = [];
@@ -106,7 +90,7 @@ export default function ProductOrderPage() {
           setPaymentMethods(enabledPMs);
           setPaymentMethod(enabledPMs[0].value);
         }
-        if (config.shippingMethods.length > 0) setSelectedShipping(config.shippingMethods[0].id);
+
       }
     }).catch(err => console.error('Failed to load:', err))
     .finally(() => setLoading(false));
@@ -115,23 +99,14 @@ export default function ProductOrderPage() {
   // Compute prices
   const price = useMemo(() => product?.salePrice || product?.price || 0, [product]);
   const subtotal = price * quantity;
-  const shippingCost = useMemo(() => {
-    if (deliveryMethod === 'pickup') return 0;
-    const method = shippingMethods.find(s => s.id === selectedShipping);
-    return method ? parseFloat(method.price) || 0 : 0;
-  }, [shippingMethods, selectedShipping, deliveryMethod]);
+  const shippingCost = 0;
   const tax = subtotal * TAX_RATE;
-  const total = Math.max(0, subtotal + shippingCost + tax);
+  const total = subtotal + tax;
 
   const validate = (): string | null => {
     if (!customerName.trim()) return 'Please enter your name';
     if (!customerPhone.trim()) return 'Please enter your phone number';
-    if (deliveryMethod === 'delivery') {
-      if (!deliveryAddress.trim()) return 'Please enter your delivery address';
-    } else {
-      if (!selectedPickupStation) return 'Please select a pickup station';
-    }
-    if (deliveryMethod === 'delivery' && !selectedShipping) return 'Please select a shipping method';
+    if (!selectedPickupStation) return 'Please select a pickup station';
     if (!paymentMethod) return 'Please select a payment method';
     return null;
   };
@@ -142,13 +117,11 @@ export default function ProductOrderPage() {
 
     setPlacing(true);
     try {
-      const shippingMethod = shippingMethods.find(s => s.id === selectedShipping);
       const orderData = {
         customerId: user?.uid,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
-        deliveryAddress: deliveryMethod === 'delivery' ? deliveryAddress.trim() : undefined,
         items: [{
           productId: product.id,
           name: product.name + (selectedColor || selectedSize ? ` (${[selectedColor, selectedSize].filter(Boolean).join(', ')})` : ''),
@@ -158,15 +131,14 @@ export default function ProductOrderPage() {
           orderLink: `${window.location.origin}/client/order/${product.id}`,
         }],
         subtotal,
-        shipping: shippingCost,
+        shipping: 0,
         tax,
         discount: 0,
         total,
         paymentMethod,
         paymentStatus: 'unpaid' as const,
-        deliveryMethod,
-        pickupLocation: deliveryMethod === 'pickup' ? selectedPickupStation : undefined,
-        shippingMethod: shippingMethod ? { name: shippingMethod.name, price: shippingMethod.price } : undefined,
+        deliveryMethod: 'pickup',
+        pickupLocation: selectedPickupStation,
         source: 'order-link',
         status: 'pending' as const,
       };
@@ -214,16 +186,7 @@ export default function ProductOrderPage() {
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons">
-          <i className="fas fa-signal"></i>
-          <i className="fas fa-wifi"></i>
-          <i className="fas fa-battery-full"></i>
-        </div>
-      </div>
-
-      <div className="main-scroll" style={{ height: 'calc(100% - 44px)', paddingBottom: 100 }}>
+      <div className="main-scroll">
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px 16px', position: 'sticky', top: 0, background: 'var(--bg-primary)', zIndex: 10 }}>
           <button className="back-btn" onClick={() => router.back()}>
@@ -349,81 +312,63 @@ export default function ProductOrderPage() {
           </div>
         </div>
 
-        {/* Delivery Method Toggle */}
+        {/* Pickup Location */}
         <div style={{ margin: '0 20px 16px', padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="fas fa-truck" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Delivery Method
+            <i className="fas fa-store" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Pickup Location
           </h4>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <button
-              onClick={() => setDeliveryMethod('delivery')}
-              style={{
-                flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-md)',
-                background: deliveryMethod === 'delivery' ? 'var(--accent-gradient-soft)' : 'var(--bg-elevated)',
-                border: `1.5px solid ${deliveryMethod === 'delivery' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                color: deliveryMethod === 'delivery' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              <i className="fas fa-truck"></i> Delivery
-            </button>
-            <button
-              onClick={() => setDeliveryMethod('pickup')}
-              style={{
-                flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-md)',
-                background: deliveryMethod === 'pickup' ? 'var(--accent-gradient-soft)' : 'var(--bg-elevated)',
-                border: `1.5px solid ${deliveryMethod === 'pickup' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                color: deliveryMethod === 'pickup' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              <i className="fas fa-store"></i> Pickup
-            </button>
-          </div>
-
-          {deliveryMethod === 'delivery' ? (
+          <label className="form-label">Pickup Location *</label>
+          {pickupStations.length > 0 ? (
             <>
-              <div className="form-group">
-                <label className="form-label">Delivery Address *</label>
-                <textarea
-                  className="form-input"
-                  placeholder="Street, city, county"
-                  value={deliveryAddress}
-                  onChange={e => setDeliveryAddress(e.target.value)}
-                  style={{ height: 80, padding: 14, resize: 'none', fontFamily: 'inherit' }}
-                />
-              </div>
-              {shippingMethods.length > 0 && (
-                <div style={{ marginTop: 4 }}>
-                  <label className="form-label">Shipping Method *</label>
-                  {shippingMethods.map(m => {
-                    const cost = parseFloat(m.price) || 0;
-                    const active = selectedShipping === m.id;
+              <select
+                className="form-input form-select"
+                value={selectedCounty}
+                onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
+                style={{ marginBottom: 8 }}
+              >
+                <option value="">Select county</option>
+                {counties.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {selectedCounty && (
+                <select
+                  className="form-input form-select"
+                  value={selectedTown}
+                  onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
+                  style={{ marginBottom: 8 }}
+                >
+                  <option value="">Select town</option>
+                  {towns.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              )}
+              {selectedTown && (
+                <div>
+                  {stationsForTown.map(station => {
+                    const active = selectedPickupStation === station.stationName;
                     return (
-                      <div key={m.id} onClick={() => setSelectedShipping(m.id)}
+                      <div key={station.id} onClick={() => setSelectedPickupStation(station.stationName)}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 14, padding: 14, borderRadius: 'var(--radius-md)',
+                          padding: 14, borderRadius: 'var(--radius-md)',
                           background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
                           border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                           marginBottom: 8, cursor: 'pointer',
                         }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: '50%',
-                          border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                          background: active ? 'var(--accent-primary)' : 'transparent',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        }}>
-                          {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 22, height: 22, borderRadius: '50%',
+                            border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                            background: active ? 'var(--accent-primary)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
+                            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
+                            {station.contactPhone && (
+                              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <h5 style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{m.name}</h5>
-                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{m.description} · {m.estimatedDays}</p>
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: cost === 0 ? 'var(--success)' : 'var(--accent-primary)' }}>
-                          {cost === 0 ? 'FREE' : `KSh ${cost.toFixed(2)}`}
-                        </span>
                       </div>
                     );
                   })}
@@ -431,74 +376,12 @@ export default function ProductOrderPage() {
               )}
             </>
           ) : (
-            <div>
-              <label className="form-label">Pickup Location *</label>
-              {pickupStations.length > 0 ? (
-                <>
-                  <select
-                    className="form-input form-select"
-                    value={selectedCounty}
-                    onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
-                    style={{ marginBottom: 8 }}
-                  >
-                    <option value="">Select county</option>
-                    {counties.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  {selectedCounty && (
-                    <select
-                      className="form-input form-select"
-                      value={selectedTown}
-                      onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
-                      style={{ marginBottom: 8 }}
-                    >
-                      <option value="">Select town</option>
-                      {towns.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  )}
-                  {selectedTown && (
-                    <div>
-                      {stationsForTown.map(station => {
-                        const active = selectedPickupStation === station.stationName;
-                        return (
-                          <div key={station.id} onClick={() => setSelectedPickupStation(station.stationName)}
-                            style={{
-                              padding: 14, borderRadius: 'var(--radius-md)',
-                              background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
-                              border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                              marginBottom: 8, cursor: 'pointer',
-                            }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{
-                                width: 22, height: 22, borderRadius: '50%',
-                                border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                                background: active ? 'var(--accent-primary)' : 'transparent',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                              }}>
-                                {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
-                                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
-                                {station.contactPhone && (
-                                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <input
-                  className="form-input"
-                  placeholder="Enter pickup location"
-                  value={selectedPickupStation}
-                  onChange={e => setSelectedPickupStation(e.target.value)}
-                />
-              )}
-            </div>
+            <input
+              className="form-input"
+              placeholder="Enter pickup location"
+              value={selectedPickupStation}
+              onChange={e => setSelectedPickupStation(e.target.value)}
+            />
           )}
         </div>
 
@@ -549,10 +432,8 @@ export default function ProductOrderPage() {
             <span style={{ fontSize: 14, fontWeight: 600 }}>KSh {subtotal.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>{deliveryMethod === 'pickup' ? 'Pickup' : 'Shipping'}</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: shippingCost === 0 ? 'var(--success)' : undefined }}>
-              {deliveryMethod === 'pickup' ? 'FREE' : shippingCost === 0 ? 'FREE' : `KSh ${shippingCost.toFixed(2)}`}
-            </span>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Pickup</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>FREE</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
             <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span>

@@ -47,17 +47,6 @@ export default function ClientTicketChatPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [clock, setClock] = useState('9:41');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Real-time messages
   useEffect(() => {
     if (!ticketId) return;
@@ -127,11 +116,6 @@ export default function ClientTicketChatPage() {
 
   return (
     <div className="app-container" style={{ background: 'var(--bg-primary)' }}>
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,

@@ -73,8 +73,6 @@ export default function OrderTrackingPage() {
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [clock, setClock] = useState('9:41');
-
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -89,16 +87,6 @@ export default function OrderTrackingPage() {
   }, []);
   const hideToast = useCallback(() => {
     setSnackbar(prev => ({ ...prev, visible: false }));
-  }, []);
-
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -193,10 +181,6 @@ export default function OrderTrackingPage() {
 
   return (
     <div className="app-container">
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 

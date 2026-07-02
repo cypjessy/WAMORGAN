@@ -138,20 +138,13 @@ export default function SettingsPage() {
   }, []);
 
   // ─── Shipping Tab State ───
-  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([
-    { id: '1', name: 'Standard Delivery', price: '299', estimatedDays: '5-7', description: 'Delivered within a week' },
-    { id: '2', name: 'Express Delivery', price: '599', estimatedDays: '1-3', description: 'Fast tracked shipping' },
-  ]);
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [newShipping, setNewShipping] = useState({ name: '', price: '', estimatedDays: '', description: '' });
   const [editingShippingId, setEditingShippingId] = useState<string | null>(null);
   const [showShippingForm, setShowShippingForm] = useState(false);
 
   // ─── Pickup Tab State ───
-  const [stations, setStations] = useState<PickupStation[]>([
-    { id: '1', county: 'Nairobi', town: 'CBD', stationName: 'CBD Branch', address: '123 Kenyatta Ave', contactPhone: '+254 712 345 678', isActive: true },
-    { id: '2', county: 'Nairobi', town: 'Westlands', stationName: 'Westlands Mall', address: 'Westlands Shopping Centre', contactPhone: '+254 712 345 679', isActive: true },
-    { id: '3', county: 'Mombasa', town: 'Nyali', stationName: 'Nyali Centre', address: '456 Nyali Rd', contactPhone: '+254 712 345 680', isActive: true },
-  ]);
+  const [stations, setStations] = useState<PickupStation[]>([]);
   const [showPickupForm, setShowPickupForm] = useState(false);
   const [editingStation, setEditingStation] = useState<PickupStation | null>(null);
   const [newStation, setNewStation] = useState({ county: '', town: '', stationName: '', address: '', contactPhone: '', isActive: true });
@@ -828,7 +821,7 @@ export default function SettingsPage() {
           <i className="fas fa-map-marker-alt" style={{ marginRight: 6, color: 'var(--accent-primary)' }}></i> Pickup Stations
           <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--accent-gradient-soft)', color: 'var(--accent-primary)', fontSize: 11, fontWeight: 700 }}>{stations.length}</span>
         </h4>
-        <button onClick={() => { setShowPickupForm(!showPickupForm); if (!showPickupForm) resetPickupForm(); }}
+        <button onClick={() => { setShowPickupForm(true); setNewStation({ county: '', town: '', stationName: '', address: '', contactPhone: '', isActive: true }); setEditingStation(null); }}
           style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', background: 'var(--accent-gradient)', border: 'none', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           <i className="fas fa-plus" style={{ marginRight: 4 }}></i> Add Station
         </button>

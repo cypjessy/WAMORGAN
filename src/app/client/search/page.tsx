@@ -47,7 +47,6 @@ function SearchResultsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [clock, setClock] = useState('9:41');
   const [query, setQuery] = useState(searchParams?.get('q') || '');
   const [filterCount, setFilterCount] = useState(0);
   const [activeFilterLabels, setActiveFilterLabels] = useState<string[]>([]);
@@ -171,17 +170,6 @@ function SearchResultsContent() {
     setSnackbar(prev => ({ ...prev, visible: false }));
   }, []);
 
-  // ─── Clock ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleBack = () => router.back();
 
   const handleSearch = (q: string) => {
@@ -302,11 +290,6 @@ function SearchResultsContent() {
 
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 

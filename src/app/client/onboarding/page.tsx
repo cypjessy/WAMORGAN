@@ -53,17 +53,7 @@ export default function ClientOnboardingPage() {
     setSnackbar(prev => ({ ...prev, visible: false }));
   }, []);
 
-  // Clock
-  const [clock, setClock] = useState('9:41');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Navigate between steps with slide animation
   const goToStep = useCallback((nextStep: OnboardingStep) => {
@@ -106,22 +96,12 @@ export default function ClientOnboardingPage() {
 
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons">
-          <i className="fas fa-signal"></i>
-          <i className="fas fa-wifi"></i>
-          <i className="fas fa-battery-full"></i>
-        </div>
-      </div>
-
       {/* Background */}
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 
-      {/* Main Content - no bottom nav, so height is calc(100% - 44px) */}
-      <div className="main-scroll" id="mainScroll" style={{ height: 'calc(100% - 44px)', paddingBottom: 40 }}>
+      {/* Main Content - no bottom nav */}
+      <div className="main-scroll" id="mainScroll" style={{ height: '100%', paddingBottom: 40 }}>
         {/* Welcome page */}
         <div className={`onboarding-page ${step === 'welcome' ? 'visible' : ''}`}>
           <WelcomeStep onGetStarted={handleGetStarted} onBrowseGuest={handleBrowseGuest} />

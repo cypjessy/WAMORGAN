@@ -47,7 +47,6 @@ export default function CartCheckoutPage() {
   const { user } = useAuth();
 
   const [step, setStep] = useState(0);
-  const [clock, setClock] = useState('9:41');
   const [cart, setCart] = useState<CartItemData[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
   const [promoActive, setPromoActive] = useState(false);
@@ -104,17 +103,6 @@ export default function CartCheckoutPage() {
   }, []);
   const hideToast = useCallback(() => {
     setSnackbar(prev => ({ ...prev, visible: false }));
-  }, []);
-
-  // Clock
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   // Load cart from localStorage
@@ -178,21 +166,14 @@ export default function CartCheckoutPage() {
     }).catch(() => {});
   }, []);
 
-  const deliveryOptions = useMemo(() => {
-    if (shippingMethods.length === 0) {
-      return [
-        { name: 'Standard Delivery', description: '3-5 business days', price: 'Free', value: 'standard' },
-        { name: 'Express Delivery', description: '1-2 business days', price: 'KSh 12.00', value: 'express' },
-        { name: 'Same Day Delivery', description: 'Today, within 4 hours', price: 'KSh 25.00', value: 'same-day' },
-      ];
-    }
-    return shippingMethods.map(sm => ({
+  const deliveryOptions = useMemo(() =>
+    shippingMethods.map(sm => ({
       name: sm.name,
       description: sm.estimatedDays ? `${sm.estimatedDays} days` : sm.description,
       price: sm.price === '0' || sm.price === 'Free' ? 'Free' : `KSh ${sm.price}`,
       value: sm.id,
-    }));
-  }, [shippingMethods]);
+    })),
+  [shippingMethods]);
 
   // Computed totals
   const itemCount = useMemo(() => cart.reduce((sum, item) => sum + item.qty, 0), [cart]);
@@ -201,10 +182,7 @@ export default function CartCheckoutPage() {
   const shippingCost = useMemo(() => {
     if (deliveryMode === 'pickup') return 0;
     const sm = shippingMethods.find(s => s.id === selectedDelivery);
-    if (sm) return parseFloat(sm.price) || 0;
-    if (selectedDelivery === 'express') return 12;
-    if (selectedDelivery === 'same-day') return 25;
-    return 0;
+    return sm ? parseFloat(sm.price) || 0 : 0;
   }, [selectedDelivery, shippingMethods, deliveryMode]);
   const tax = useMemo(() => (subtotal - discount) * 0.08, [subtotal, discount]);
   const total = useMemo(() => subtotal - discount + shippingCost + tax, [subtotal, discount, shippingCost, tax]);
@@ -304,10 +282,6 @@ export default function CartCheckoutPage() {
 
   return (
     <div className="app-container">
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 

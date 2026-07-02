@@ -201,18 +201,6 @@ export default function ClientShopPage() {
 
   const lastScrollRef = useRef(0);
 
-  // Clock
-  const [clock, setClock] = useState('9:41');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleWishClick = (name: string) => {
     const newWishlist = new Set(wishlist);
     if (newWishlist.has(name)) {
@@ -291,16 +279,6 @@ export default function ClientShopPage() {
 
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons">
-          <i className="fas fa-signal"></i>
-          <i className="fas fa-wifi"></i>
-          <i className="fas fa-battery-full"></i>
-        </div>
-      </div>
-
       {/* Background */}
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>

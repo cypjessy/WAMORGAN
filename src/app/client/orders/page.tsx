@@ -165,8 +165,6 @@ function wishlistFromProduct(p: Product, productId: string): WishlistData {
 export default function OrdersListPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [clock, setClock] = useState('9:41');
-
   // Page system: 'orders' | 'wishlist'
   const [activePage, setActivePage] = useState<'orders' | 'wishlist'>('orders');
 
@@ -202,17 +200,6 @@ export default function OrdersListPage() {
   }, []);
   const hideToast = useCallback(() => {
     setSnackbar(prev => ({ ...prev, visible: false }));
-  }, []);
-
-  // Clock
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   // Fetch orders from Firestore
@@ -394,11 +381,6 @@ export default function OrdersListPage() {
 
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 

@@ -54,7 +54,6 @@ export default function ProductDetailPage() {
   // State
   const [productData, setProductData] = useState<ProductDetailData | null>(null);
   const [productLoading, setProductLoading] = useState(true);
-  const [clock, setClock] = useState('9:41');
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState('Black');
   const [selectedSize, setSelectedSize] = useState('Standard');
@@ -120,17 +119,6 @@ export default function ProductDetailPage() {
     setSnackbar(prev => ({ ...prev, visible: false }));
   }, []);
 
-  // Clock
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleBack = () => {
     router.back();
   };
@@ -189,7 +177,6 @@ export default function ProductDetailPage() {
   if (!productData) {
     return (
       <div className="app-container">
-        <div className="status-bar"><span className="time">{clock}</span><div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div></div>
         <div className="main-scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {productLoading ? <div className="spinner" /> : <p style={{ color: 'var(--text-muted)' }}>Product not found</p>}
         </div>
@@ -199,16 +186,6 @@ export default function ProductDetailPage() {
 
   return (
     <div className="app-container">
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons">
-          <i className="fas fa-signal"></i>
-          <i className="fas fa-wifi"></i>
-          <i className="fas fa-battery-full"></i>
-        </div>
-      </div>
-
       {/* Background */}
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>

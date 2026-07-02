@@ -58,17 +58,6 @@ export default function ClientMessagesPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clock, setClock] = useState('9:41');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setClock(now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     const q = supportTicketService.onTickets((all) => {
@@ -88,10 +77,6 @@ export default function ClientMessagesPage() {
 
   return (
     <div className="app-container" style={{ background: 'var(--bg-primary)' }}>
-      <div className="status-bar">
-        <span className="time">{clock}</span>
-        <div className="icons"><i className="fas fa-signal"></i><i className="fas fa-wifi"></i><i className="fas fa-battery-full"></i></div>
-      </div>
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
 
