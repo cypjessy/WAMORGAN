@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Customer } from './CustomerItem';
 import { segmentConfig } from './CustomerItem';
-import { orderService, customerService, businessProfileService } from '@/lib/db';
-import { sendMessage } from '@/lib/evolution';
+import { orderService, customerService } from '@/lib/db';
 
 interface OrderBrief {
   id: string;
@@ -29,17 +28,10 @@ export default function CustomerProfileSheet({
   onEdit,
   onDelete,
 }: CustomerProfileSheetProps) {
-  const [instanceName, setInstanceName] = useState('wamorgan-instance-01');
   const [orders, setOrders] = useState<OrderBrief[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-
-  useEffect(() => {
-    businessProfileService.getProfile().then(bp => {
-      if (bp?.whatsappInstanceName) setInstanceName(bp.whatsappInstanceName);
-    }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!open || !customer) return;
@@ -96,7 +88,7 @@ export default function CustomerProfileSheet({
 
           {/* Actions */}
           <div className="profile-actions-row">
-            <button className="profile-action-btn" onClick={() => customer.phone && sendMessage(instanceName, customer.phone, '')}>
+            <button className="profile-action-btn" onClick={() => customer.phone && window.open(`https://wa.me/${customer.phone.replace(/\D/g, '')}`, '_blank')}>
               <i className="fab fa-whatsapp" style={{ color: '#25d366' }}></i> WhatsApp
             </button>
             <button className="profile-action-btn" onClick={() => customer.email && window.open(`mailto:${customer.email}`)}>
@@ -111,7 +103,7 @@ export default function CustomerProfileSheet({
           <div className="profile-stats-row">
             <div className="profile-stat">
               <div className="profile-stat-value" style={{ color: 'var(--accent-primary)' }}>
-                ${customer.spent.toLocaleString()}
+                KSh {customer.spent.toLocaleString()}
               </div>
               <div className="profile-stat-label">Total Spent</div>
             </div>
@@ -123,7 +115,7 @@ export default function CustomerProfileSheet({
             </div>
             <div className="profile-stat">
               <div className="profile-stat-value" style={{ color: 'var(--info)' }}>
-                ${customer.avg}
+                KSh {customer.avg}
               </div>
               <div className="profile-stat-label">Avg Order</div>
             </div>
