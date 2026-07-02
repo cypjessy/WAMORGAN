@@ -69,6 +69,16 @@ export interface BusinessProfile {
   biometricEnabled?: boolean;
   whatsappInstanceName?: string;
   preferredLanguage?: string;
+  aiSettings?: {
+    tone?: string;
+    language?: string;
+    greetingMessage?: string;
+    autoReplyEnabled?: boolean;
+    orderStatusEnabled?: boolean;
+    productRecommendations?: boolean;
+    businessHoursOnly?: boolean;
+  };
+  teamMembers?: TeamMember[];
   heroSlides?: Array<{ tag: string; title: string; desc: string; cta: string; cls: string }>;
   createdAt: any;
   updatedAt: any;
@@ -737,6 +747,16 @@ export const supportTicketService = {
 };
 
 // ─── Cancellation Request Types ────────────────────────────────────────────
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'owner' | 'admin' | 'staff';
+  active: boolean;
+  invitedAt: any;
+}
 
 export interface CancellationRequest {
   id: string;

@@ -11,10 +11,11 @@ import BottomNav from '../components/BottomNav';
 import MoreSheet from '../components/MoreSheet';
 import SettingsPageHeader from './components/SettingsPageHeader';
 import LogoutDialog from './components/LogoutDialog';
+import DeleteAccountDialog from './components/DeleteAccountDialog';
 import Snackbar from './components/Snackbar';
 
 const counties = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Nyeri', 'Machakos', 'Malindi', 'Naivasha'];
-type SettingsTab = 'profile' | 'products' | 'shipping' | 'pickup' | 'whatsapp' | 'payments' | 'security';
+type SettingsTab = 'profile' | 'products' | 'shipping' | 'pickup' | 'whatsapp' | 'payments' | 'security' | 'ai' | 'team';
 
 const shippingPresets = [
   { name: 'Standard Delivery', price: '299', days: '5-7', desc: 'Delivered within a week' },
@@ -172,6 +173,24 @@ export default function SettingsPage() {
   const [awayEnabled, setAwayEnabled] = useState(false);
   const [awayMessage, setAwayMessage] = useState("Hi! Thanks for reaching out. We're currently away but will respond as soon as we're back.");
 
+  // Load AI settings from Firestore
+  useEffect(() => {
+    businessProfileService.getProfile().then(bp => {
+      const ai = bp?.aiSettings;
+      if (ai) {
+        setAiTone(ai.tone || 'Friendly & Professional');
+        setAiLanguage(ai.language || 'English');
+        setAiGreeting(ai.greetingMessage || '');
+        setAiAutoReply(ai.autoReplyEnabled ?? true);
+        setAiOrderStatus(ai.orderStatusEnabled ?? true);
+        setAiRecommendations(ai.productRecommendations ?? false);
+        setAiBusinessHours(ai.businessHoursOnly ?? true);
+      }
+      setTeamMembers(bp?.teamMembers || []);
+      setTeamLoading(false);
+    }).catch(() => setTeamLoading(false));
+  }, []);
+
   // Load WhatsApp automation settings from Firestore
   useEffect(() => {
     whatsappSettingsService.getSettings().then(s => {
@@ -205,6 +224,29 @@ export default function SettingsPage() {
   // ─── Security ───
   const [biometricEnabled, setBiometricEnabled] = useState(true);
 
+  // AI Tab State
+  const [aiTone, setAiTone] = useState('Friendly & Professional');
+  const [aiLanguage, setAiLanguage] = useState('English');
+  const [aiGreeting, setAiGreeting] = useState('');
+  const [aiAutoReply, setAiAutoReply] = useState(true);
+  const [aiOrderStatus, setAiOrderStatus] = useState(true);
+  const [aiRecommendations, setAiRecommendations] = useState(false);
+  const [aiBusinessHours, setAiBusinessHours] = useState(true);
+  const [aiTonePicker, setAiTonePicker] = useState(false);
+  const [aiLangPicker, setAiLangPicker] = useState(false);
+
+  // Team Tab State
+  const [teamMembers, setTeamMembers] = useState<import('@/lib/db').TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'staff'>('staff');
+
+  // Delete Account Dialog
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+
   // Bottom Nav
   const [navIndex, setNavIndex] = useState(4); // Settings doesn't have a dedicated nav tab
   const [fabOpen, setFabOpen] = useState(false);
@@ -219,6 +261,8 @@ export default function SettingsPage() {
     { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', brand: true },
     { id: 'payments', label: 'Payments', icon: 'fa-wallet' },
     { id: 'security', label: 'Security', icon: 'fa-shield' },
+    { id: 'ai', label: 'AI', icon: 'fa-brain' },
+    { id: 'team', label: 'Team', icon: 'fa-users' },
   ];
 
   const saveProfile = async () => {
@@ -678,6 +722,19 @@ export default function SettingsPage() {
         >
           <i className="fas fa-right-from-bracket"></i>
           Log Out
+        </button>
+        <button
+          onClick={() => setDeleteAccountOpen(true)}
+          style={{
+            width: '100%', height: 48, borderRadius: 'var(--radius-md)',
+            background: 'transparent', border: '1.5px solid rgba(239,68,68,0.5)',
+            color: 'var(--error)', fontSize: 14, fontWeight: 700,
+            fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s ease',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10,
+          }}
+        >
+          <i className="fas fa-trash"></i>
+          Delete Account
         </button>
       </div>
     </>
@@ -1493,6 +1550,228 @@ export default function SettingsPage() {
     </>
   );
 
+  // ─── AI Tab ───
+  const saveAiSettings = async () => {
+    try {
+      await businessProfileService.saveProfile({
+        aiSettings: {
+          tone: aiTone,
+          language: aiLanguage,
+          greetingMessage: aiGreeting,
+          autoReplyEnabled: aiAutoReply,
+          orderStatusEnabled: aiOrderStatus,
+          productRecommendations: aiRecommendations,
+          businessHoursOnly: aiBusinessHours,
+        },
+      });
+      showToast('AI settings saved!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save AI settings', 'error');
+    }
+  };
+
+  const renderAiTab = () => (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Personality</h4>
+        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          {/* Tone */}
+          <div>
+            <div onClick={() => setAiTonePicker(!aiTonePicker)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--accent-gradient-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--accent-primary)' }}><i className="fas fa-face-smile"></i></div>
+              <div style={{ flex: 1 }}><h4 style={{ fontSize: 15, fontWeight: 600 }}>Tone</h4><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{aiTone}</p></div>
+              <i className={`fas fa-chevron-${aiTonePicker ? 'up' : 'right'}`} style={{ color: 'var(--text-muted)', fontSize: 14 }}></i>
+            </div>
+            {aiTonePicker && (
+              <div style={{ padding: '8px 16px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {['Friendly & Professional', 'Casual', 'Formal', 'Playful', 'Minimal'].map(t => (
+                  <button key={t} onClick={() => { setAiTone(t); setAiTonePicker(false); }}
+                    style={{ padding: '8px 16px', borderRadius: 'var(--radius-full)', background: aiTone === t ? 'var(--accent-gradient)' : 'var(--bg-card)', border: 'none', color: aiTone === t ? 'white' : 'var(--text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Language */}
+          <div>
+            <div onClick={() => setAiLangPicker(!aiLangPicker)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--success-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--success)' }}><i className="fas fa-language"></i></div>
+              <div style={{ flex: 1 }}><h4 style={{ fontSize: 15, fontWeight: 600 }}>Language</h4><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{aiLanguage}</p></div>
+              <i className={`fas fa-chevron-${aiLangPicker ? 'up' : 'right'}`} style={{ color: 'var(--text-muted)', fontSize: 14 }}></i>
+            </div>
+            {aiLangPicker && (
+              <div style={{ padding: '8px 16px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {['English', 'Swahili', 'French', 'Arabic', 'Spanish'].map(l => (
+                  <button key={l} onClick={() => { setAiLanguage(l); setAiLangPicker(false); }}
+                    style={{ padding: '8px 16px', borderRadius: 'var(--radius-full)', background: aiLanguage === l ? 'var(--accent-gradient)' : 'var(--bg-card)', border: 'none', color: aiLanguage === l ? 'white' : 'var(--text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 24 }}>
+        <label className="form-label">Greeting Message</label>
+        <textarea className="form-input" value={aiGreeting} onChange={(e) => setAiGreeting(e.target.value)}
+          placeholder="Hi! 👋 Thanks for reaching out. How can I help you today?"
+          style={{ height: 'auto', padding: '14px 16px', minHeight: 80, resize: 'none' }} />
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Automation</h4>
+        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          {[
+            { label: 'Auto-Reply to New Messages', desc: 'AI responds to first messages', val: aiAutoReply, set: setAiAutoReply },
+            { label: 'Order Status Inquiries', desc: 'Answer order-related questions', val: aiOrderStatus, set: setAiOrderStatus },
+            { label: 'Product Recommendations', desc: 'Suggest products to customers', val: aiRecommendations, set: setAiRecommendations },
+            { label: 'Business Hours Only', desc: 'Only respond during business hours', val: aiBusinessHours, set: setAiBusinessHours },
+          ].map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: i < 3 ? '1px solid var(--border-subtle)' : 'none' }}>
+              <div><h4 style={{ fontSize: 14, fontWeight: 600 }}>{item.label}</h4><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{item.desc}</p></div>
+              <div style={toggleStyle(item.val)} onClick={() => item.set(!item.val)}><div style={toggleKnob(item.val)} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button className="btn btn-primary" onClick={saveAiSettings}>
+        <i className="fas fa-check"></i> Save AI Settings
+      </button>
+    </>
+  );
+
+  // ─── Team Tab ───
+  const persistTeamMembers = async (updated: import('@/lib/db').TeamMember[]) => {
+    await businessProfileService.saveProfile({ teamMembers: updated });
+    setTeamMembers(updated);
+  };
+
+  const handleInviteMember = async () => {
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      showToast('Name and email are required', 'error');
+      return;
+    }
+    const newMember = {
+      id: Date.now().toString(),
+      name: inviteName.trim(),
+      email: inviteEmail.trim(),
+      phone: invitePhone.trim(),
+      role: inviteRole,
+      active: true,
+      invitedAt: new Date().toISOString(),
+    };
+    await persistTeamMembers([...teamMembers, newMember]);
+    showToast(`${newMember.name} invited as ${inviteRole}`, 'success');
+    setInviteName('');
+    setInviteEmail('');
+    setInvitePhone('');
+    setShowInviteForm(false);
+  };
+
+  const handleToggleMemberActive = async (id: string) => {
+    const updated = teamMembers.map(m => m.id === id ? { ...m, active: !m.active } : m);
+    await persistTeamMembers(updated);
+  };
+
+  const handleRemoveMember = async (id: string) => {
+    const updated = teamMembers.filter(m => m.id !== id);
+    await persistTeamMembers(updated);
+    showToast('Team member removed', 'success');
+  };
+
+  const roleColors: Record<string, string> = {
+    owner: 'var(--accent-gradient)',
+    admin: 'var(--success-soft)',
+    staff: 'var(--info-soft)',
+  };
+
+  const renderTeamTab = () => (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          {teamLoading ? (
+            <div style={{ padding: 24, textAlign: 'center' }}><div className="spinner" /></div>
+          ) : teamMembers.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <i className="fas fa-users" style={{ fontSize: 24, marginBottom: 8, display: 'block' }}></i>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>No team members yet. Invite someone!</span>
+            </div>
+          ) : (
+            teamMembers.map((member, i) => (
+              <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i < teamMembers.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: roleColors[member.role] || 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                  {member.name.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ fontSize: 15, fontWeight: 700 }}>{member.name}</h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontWeight: 500 }}>
+                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    {member.email ? ` · ${member.email}` : ''}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div onClick={() => handleToggleMemberActive(member.id)}
+                    style={{ width: 10, height: 10, borderRadius: '50%', background: member.active ? 'var(--success)' : 'var(--text-muted)', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s ease' }} />
+                  {member.role !== 'owner' && (
+                    <button onClick={() => handleRemoveMember(member.id)}
+                      style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg-card)', border: 'none', color: 'var(--error)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {showInviteForm ? (
+        <div style={{ marginBottom: 16, padding: 16, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+          <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--accent-primary)' }}>
+            <i className="fas fa-user-plus"></i> Invite Team Member
+          </h4>
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label className="form-label">Name *</label>
+            <input className="form-input" value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Full name" style={{ paddingLeft: 16, paddingRight: 16 }} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label className="form-label">Email *</label>
+            <input className="form-input" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@example.com" style={{ paddingLeft: 16, paddingRight: 16 }} />
+          </div>
+          <div className="form-row" style={{ marginBottom: 10 }}>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+              <label className="form-label">Phone</label>
+              <input className="form-input" type="tel" value={invitePhone} onChange={(e) => setInvitePhone(e.target.value)} placeholder="+254 712 345 678" style={{ paddingLeft: 16, paddingRight: 16 }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+              <label className="form-label">Role</label>
+              <select className="form-input form-select" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as 'admin' | 'staff')} style={{ paddingLeft: 16, paddingRight: 40 }}>
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-primary" style={{ flex: 1, height: 44, fontSize: 14 }} onClick={handleInviteMember}>
+              <i className="fas fa-paper-plane"></i> Send Invite
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 0.4, height: 44, fontSize: 14 }} onClick={() => setShowInviteForm(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <button className="btn btn-primary" onClick={() => setShowInviteForm(true)}>
+            <i className="fas fa-user-plus"></i> Invite Member
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile': return renderProfileTab();
@@ -1502,6 +1781,8 @@ export default function SettingsPage() {
       case 'whatsapp': return renderWhatsAppTab();
       case 'payments': return renderPaymentsTab();
       case 'security': return renderSecurityTab();
+      case 'ai': return renderAiTab();
+      case 'team': return renderTeamTab();
     }
   };
 
@@ -1565,6 +1846,13 @@ export default function SettingsPage() {
       />
 
       {/* More Sheet */}
+n      {/* Delete Account Dialog */}
+      <DeleteAccountDialog
+        open={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+        onShowToast={showToast}
+      />
+
       <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
 
       {/* Snackbar */}
