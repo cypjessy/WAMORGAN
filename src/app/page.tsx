@@ -1,65 +1,328 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { userProfileService, createUserDocument } from "@/lib/db";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import LoginForm from "@/app/components/LoginForm";
+import RegisterForm from "@/app/components/RegisterForm";
+import SocialLogin from "@/app/components/SocialLogin";
+import AdminRegisterSheet from "@/app/components/AdminRegisterSheet";
+import ForgotSheetModal from "@/app/components/ForgotSheetModal";
+import TermsSheetModal from "@/app/components/TermsSheetModal";
+import "./login.css";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { signIn, signUp, user } = useAuth();
+
+  // ─── Page navigation ───────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState<"login" | "register">("login");
+
+  // ─── Login state ────────────────────────────────────────────────────
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+
+  // ─── Register state ─────────────────────────────────────────────────
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regAddress, setRegAddress] = useState("");
+  const [regCity, setRegCity] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [termsAgree, setTermsAgree] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regShake, setRegShake] = useState(false);
+  const [regErrors, setRegErrors] = useState<Record<string, string>>({});
+
+  // ─── Forgot password sheet state ────────────────────────────────────
+  const [forgotSheetOpen, setForgotSheetOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+
+  // ─── Terms sheet state ──────────────────────────────────────────────
+  const [termsSheetOpen, setTermsSheetOpen] = useState(false);
+
+  // ─── Admin register sheet state ─────────────────────────────────────
+  const [adminRegisterOpen, setAdminRegisterOpen] = useState(false);
+
+  // ─── Toast state ────────────────────────────────────────────────────
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [toastVisible, setToastVisible] = useState(false);
+
+  // ─── Clock ──────────────────────────────────────────────────────────
+  const [clockTime, setClockTime] = useState("");
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setClockTime(
+        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+      );
+    };
+    update();
+    const interval = setInterval(update, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── Redirect if already logged in ──────────────────────────────────
+  useEffect(() => {
+    if (user) {
+      userProfileService
+        .getProfile(user.uid)
+        .then((profile: any) => {
+          if (profile?.role === "admin") router.push("/dashboard");
+          else router.push("/client/shop");
+        })
+        .catch(() => router.push("/dashboard"));
+    }
+  }, [user, router]);
+
+  // ─── Helpers ────────────────────────────────────────────────────────
+  const showToast = useCallback((message: string, type: "success" | "error") => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3000);
+  }, []);
+
+  const triggerShake = useCallback(() => {
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
+  }, []);
+
+  const triggerRegShake = useCallback(() => {
+    setRegShake(true);
+    setTimeout(() => setRegShake(false), 400);
+  }, []);
+
+  // ─── Navigation ─────────────────────────────────────────────────────
+  const goToLogin = useCallback(() => {
+    setCurrentPage("login");
+  }, []);
+
+  const goToRegister = useCallback(() => {
+    setCurrentPage("register");
+  }, []);
+
+  // ─── Login handler ──────────────────────────────────────────────────
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let valid = true;
+
+    setEmailError(false);
+    setPasswordError(false);
+
+    if (!loginEmail.includes("@")) {
+      setEmailError(true);
+      valid = false;
+    }
+    if (loginPassword.length < 6) {
+      setPasswordError(true);
+      valid = false;
+    }
+
+    if (!valid) {
+      triggerShake();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cred = await signIn(loginEmail, loginPassword);
+      const profile = await userProfileService.getProfile(cred.user.uid);
+      showToast("Welcome back! Login successful", "success");
+      setTimeout(() => {
+        if (profile?.role === "admin") router.push("/dashboard");
+        else router.push("/client/shop");
+      }, 500);
+    } catch (err: any) {
+      const msg =
+        err.code === "auth/user-not-found"
+          ? "No account found with this email"
+          : err.code === "auth/wrong-password" || err.code === "auth/invalid-credential"
+          ? "Invalid email or password"
+          : err.message || "Login failed. Please try again.";
+      showToast(msg, "error");
+      triggerShake();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Register handler ───────────────────────────────────────────────
+  const handleRegister = async () => {
+    const errors: Record<string, string> = {};
+    if (!regName.trim()) errors.name = "Name is required";
+    if (!regEmail.includes("@")) errors.email = "Valid email is required";
+    if (regPassword.length < 6) errors.password = "Password must be at least 6 characters";
+    if (!termsAgree) errors.terms = "You must agree to the terms";
+
+    if (Object.keys(errors).length > 0) {
+      setRegErrors(errors);
+      triggerRegShake();
+      return;
+    }
+
+    setRegErrors({});
+    setRegLoading(true);
+    try {
+      const cred = await signUp(regEmail, regPassword);
+      await createUserDocument(cred.user.uid, regEmail, {
+        displayName: regName.trim(),
+        role: "client",
+        phone: regPhone,
+      });
+      showToast("Account created successfully!", "success");
+      setTimeout(() => router.push("/client/shop"), 500);
+    } catch (err: any) {
+      showToast(err.message || "Registration failed", "error");
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  // ─── Social login ───────────────────────────────────────────────────
+  const handleSocialLogin = (provider: string) => {
+    showToast(`Connecting to ${provider}...`, "success");
+  };
+
+  // ─── Biometric ──────────────────────────────────────────────────────
+  const handleBiometric = () => {
+    showToast("Biometric authentication", "success");
+  };
+
+  // ─── Forgot password ────────────────────────────────────────────────
+  const handleForgotSend = async () => {
+    if (!forgotEmail.includes("@")) {
+      showToast("Please enter a valid email", "error");
+      return;
+    }
+    try {
+      if (auth) {
+        await sendPasswordResetEmail(auth, forgotEmail);
+      }
+      setForgotSheetOpen(false);
+      showToast("Reset link sent to your email", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to send reset email", "error");
+    }
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="app-container">
+      {/* Status Bar */}
+      <div className="status-bar">
+        <span className="time">{clockTime}</span>
+        <div className="icons">
+          <i className="fas fa-signal"></i>
+          <i className="fas fa-wifi"></i>
+          <i className="fas fa-battery-full"></i>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+
+      {/* Background Effects */}
+      <div className="bg-mesh"></div>
+      <div className="noise-overlay"></div>
+
+      {/* Main Content */}
+      <div className="main-content">
+        {/* LOGIN PAGE */}
+        <div className={`page ${currentPage === "login" ? "active" : ""}`}>
+          <LoginForm
+            loginEmail={loginEmail}
+            loginPassword={loginPassword}
+            rememberMe={rememberMe}
+            showPassword={showPassword}
+            emailError={emailError}
+            passwordError={passwordError}
+            formShaking={shake}
+            loading={loading}
+            onEmailChange={setLoginEmail}
+            onPasswordChange={setLoginPassword}
+            onRememberChange={setRememberMe}
+            onTogglePassword={() => setShowPassword(!showPassword)}
+            onSubmit={handleLogin}
+            onForgotClick={() => setForgotSheetOpen(true)}
+          />
+
+          <SocialLogin
+            onSocialLogin={handleSocialLogin}
+            onGoToRegister={goToRegister}
+            onBiometricClick={handleBiometric}
+          />
+
+          <div className="bottom-text" style={{ marginTop: 8 }}>
+            <a onClick={() => setAdminRegisterOpen(true)}>Admin? Register here</a>
+          </div>
         </div>
-      </main>
+
+        {/* REGISTER PAGE */}
+        <div className={`page ${currentPage === "register" ? "active" : ""}`}>
+          <RegisterForm
+            regName={regName}
+            regEmail={regEmail}
+            regPhone={regPhone}
+            regPassword={regPassword}
+            regAddress={regAddress}
+            regCity={regCity}
+            showRegPassword={showRegPassword}
+            termsAgree={termsAgree}
+            loading={regLoading}
+            formShaking={regShake}
+            errors={regErrors}
+            onRegNameChange={setRegName}
+            onRegEmailChange={setRegEmail}
+            onRegPhoneChange={setRegPhone}
+            onRegPasswordChange={setRegPassword}
+            onRegAddressChange={setRegAddress}
+            onRegCityChange={setRegCity}
+            onToggleRegPassword={() => setShowRegPassword(!showRegPassword)}
+            onTermsAgreeChange={setTermsAgree}
+            onRegister={handleRegister}
+            onOpenTerms={() => setTermsSheetOpen(true)}
+            onGoBack={goToLogin}
+          />
+        </div>
+      </div>
+
+      {/* Forgot Password Sheet */}
+      <ForgotSheetModal
+        open={forgotSheetOpen}
+        sheetEmail={forgotEmail}
+        onEmailChange={setForgotEmail}
+        onSend={handleForgotSend}
+        onClose={() => setForgotSheetOpen(false)}
+      />
+
+      {/* Admin Register Sheet */}
+      <AdminRegisterSheet
+        open={adminRegisterOpen}
+        onClose={() => setAdminRegisterOpen(false)}
+        showToast={showToast}
+      />
+
+      {/* Terms Sheet */}
+      <TermsSheetModal
+        open={termsSheetOpen}
+        onClose={() => setTermsSheetOpen(false)}
+      />
+
+      {/* Toast */}
+      <div className={`toast ${toastVisible ? "show" : ""} ${toastType}`}>
+        <i className={`fas ${toastType === "success" ? "fa-check-circle" : "fa-exclamation-circle"}`}></i>
+        <span>{toastMessage}</span>
+      </div>
     </div>
   );
 }
