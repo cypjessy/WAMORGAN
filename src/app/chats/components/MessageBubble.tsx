@@ -1,5 +1,7 @@
 'use client';
 
+import { Fragment } from 'react';
+
 interface ProductData {
   emoji: string;
   name: string;
@@ -15,6 +17,45 @@ interface MessageBubbleProps {
   ai?: boolean;
   product?: ProductData;
   onAddToCart?: () => void;
+}
+
+// ─── WhatsApp Markdown Parser ───────────────────────────────────────────────
+// Converts WhatsApp-style formatting to React elements:
+//   *bold*   → <strong>
+//   _italic_ → <em>
+//   ~strike~ → <del>
+//   ```code``` → <code>
+//   newlines → <br />
+
+function parseInline(text: string): React.ReactNode[] {
+  // Split by markdown patterns while preserving the delimiters
+  const parts = text.split(/(\*[^*]+\*|_[^_]+_|~[^~]+~|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return <strong key={i}>{part.slice(1, -1)}</strong>;
+    }
+    if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('~') && part.endsWith('~') && part.length > 2) {
+      return <del key={i}>{part.slice(1, -1)}</del>;
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return <code key={i} style={{ background: 'rgba(0,0,0,0.08)', padding: '2px 4px', borderRadius: 4, fontSize: '0.9em' }}>{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
+}
+
+function formatWhatsAppText(text: string): React.ReactNode {
+  // Split by newlines, parse each line, join with <br />
+  const lines = text.split('\n');
+  return lines.map((line, i) => (
+    <Fragment key={i}>
+      {i > 0 && <br />}
+      {parseInline(line)}
+    </Fragment>
+  ));
 }
 
 export default function MessageBubble({ type, text, time, status, ai, product, onAddToCart }: MessageBubbleProps) {
@@ -51,7 +92,7 @@ export default function MessageBubble({ type, text, time, status, ai, product, o
         {ai && (
           <div className="ai-badge-msg"><i className="fas fa-robot"></i> AI Assistant</div>
         )}
-        {text}
+        {text ? formatWhatsAppText(text) : ''}
         <div className="message-meta">
           <span className="message-time">{time}</span>
           {type === 'sent' && (

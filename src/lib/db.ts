@@ -518,12 +518,48 @@ export const conversationService = {
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Conversation[];
   },
 
-  onConversations(channel: 'whatsapp' | 'inapp', callback: (conversations: Conversation[]) => void): Unsubscribe {
+  /**
+   * Listen to conversations in real-time.
+   *
+   * `callback` receives:
+   *  - `conversations`: full list (on first snapshot) or null (on changes)
+   *  - `changes`: array of { type: 'added'|'modified'|'removed', doc: Conversation }
+   *
+   * On the first snapshot, `conversations` is the full list and `changes` is empty.
+   * On subsequent snapshots, `conversations` is null and only `changes` has data.
+   * This lets consumers do incremental state updates instead of replacing the entire list.
+   */
+  onConversations(
+    channel: 'whatsapp' | 'inapp',
+    callback: (conversations: Conversation[] | null, changes: Array<{ type: string; doc: Conversation }>) => void,
+    onError?: (error: any) => void
+  ): Unsubscribe {
     const constraints: any[] = [where("channel", "==", channel)];
     constraints.push(orderBy("lastMessageTime", "desc"));
-    return onSnapshot(query(collection(db, "conversations"), ...constraints), (snap) => {
-      callback(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Conversation[]);
-    });
+    let isFirst = true;
+    return onSnapshot(
+      query(collection(db, "conversations"), ...constraints),
+      (snap) => {
+        if (isFirst) {
+          isFirst = false;
+          const all = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Conversation[];
+          callback(all, []);
+        } else {
+          const changes: Array<{ type: string; doc: Conversation }> = [];
+          snap.docChanges().forEach((change) => {
+            changes.push({
+              type: change.type,
+              doc: { id: change.doc.id, ...change.doc.data() } as Conversation,
+            });
+          });
+          callback(null, changes);
+        }
+      },
+      (error) => {
+        console.error('[ConversationService] Snapshot error:', error);
+        onError?.(error);
+      }
+    );
   },
 
   async getMessages(conversationId: string): Promise<Message[]> {

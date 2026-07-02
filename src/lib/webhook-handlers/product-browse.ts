@@ -169,7 +169,7 @@ export async function startProductBrowseFlow(
       if (catMap.size > 0) {
         categories = Array.from(catMap.entries()).map(([name, cat]) => {
           // Extract unique subcategories from products in this category
-          const subcategories = [...new Set(cat.products.map((p: any) => p.subcategory).filter(Boolean))] as string[];
+          const subcategories = [...new Set(cat.products.map((p: any) => p.subcategory || p.categoryName).filter(Boolean))] as string[];
           allCategoryProducts[name] = cat.products;
           return {
             name,
@@ -368,10 +368,9 @@ async function handleSubcategorySelection(
   await deps.stopTyping(tenantId, phone);
 
   const selectedSub = subcategories[num - 1];
-  const allProducts = selections.allCategoryProducts?.[selections.categoryName] || [];
-  const filteredProducts = allProducts.filter(
-    (p: any) => (p.subcategory || '').toLowerCase() === selectedSub.toLowerCase()
-  );
+  const allProducts = selections.allCategoryProducts?.[selections.categoryName] || [];    const filteredProducts = allProducts.filter(
+      (p: any) => (p.subcategory || p.categoryName || '').toLowerCase() === selectedSub.toLowerCase()
+    );
 
   if (filteredProducts.length === 0) {
     await deps.sendMessage(tenantId, phone,

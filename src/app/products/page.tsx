@@ -298,9 +298,11 @@ export default function ProductsPage() {
         sku: '',
         category: data.category || 'other',
         categoryName: data.subcategory,
+        subcategory: data.subcategory,
         imageUrl: data.imageUrl || '',
         images: data.images || [],
         specs: data.specs,
+        type: data.specs?.type?.[0] || '',
         variants: data.variants?.map((v: string, i: number) => ({
           id: `v${i}`, specs: { variant: v }, sku: '', price: parseFloat(data.price) || 0, stock: parseInt(data.stock) || 0,
         })),

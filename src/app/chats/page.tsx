@@ -165,11 +165,79 @@ export default function ChatsPage() {
   const [convLoading, setConvLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = conversationService.onConversations('whatsapp', (dbConvs) => {
-      setConversations(dbConvs.map(toLocalConv));
-      setConvLoading(false);
+    let cancelled = false;
+    let loaded = false;
+
+    // Subscribe with incremental updates via docChanges()
+    const unsub = conversationService.onConversations('whatsapp', (dbConvs, changes) => {
+      if (cancelled) return;
+
+      if (dbConvs) {
+        // First snapshot — full list
+        setConversations(dbConvs.map(toLocalConv));
+        loaded = true;
+        setConvLoading(false);
+      } else if (changes.length > 0) {
+        // Subsequent snapshots — only apply changed conversations
+        setConversations(prev => {
+          const next = [...prev];
+          for (const change of changes) {
+            const idx = next.findIndex(c => c.id === change.doc.id);
+            const updated = change.type !== 'removed' ? toLocalConv(change.doc) : null;
+            if (change.type === 'removed') {
+              if (idx !== -1) next.splice(idx, 1);
+            } else if (change.type === 'modified' && idx !== -1) {
+              // Remove from old position, unshift to front (newest message = top)
+              next.splice(idx, 1);
+              next.unshift(updated!);
+            } else if (idx !== -1) {
+              // 'added' but already exists (edge case)
+              next[idx] = updated!;
+            } else {
+              // New conversation — add to front
+              next.unshift(updated!);
+            }
+          }
+          return next;
+        });
+        if (!loaded) { loaded = true; setConvLoading(false); }
+      }
+    }, (error: any) => {
+      // Subscription failed (likely missing composite index) — fall back to one-time fetch
+      console.warn('[Chats] Conversation snapshot failed, falling back to fetch:', error.message);
+      if (!cancelled) {
+        conversationService.getConversations('whatsapp').then((dbConvs) => {
+          if (!cancelled) {
+            setConversations(dbConvs.map(toLocalConv));
+            setConvLoading(false);
+          }
+        }).catch((fetchErr) => {
+          console.error('[Chats] Fallback fetch also failed:', fetchErr);
+          if (!cancelled) setConvLoading(false);
+        });
+      }
     });
-    return unsub;
+
+    // Safety timeout — force-load via fetch if snapshot never fired after 8s
+    const timeout = setTimeout(() => {
+      if (!cancelled && !loaded) {
+        console.warn('[Chats] Snapshot timeout, fallback fetching conversations');
+        conversationService.getConversations('whatsapp').then((dbConvs) => {
+          if (!cancelled) {
+            setConversations(dbConvs.map(toLocalConv));
+            setConvLoading(false);
+          }
+        }).catch(() => {
+          if (!cancelled) setConvLoading(false);
+        });
+      }
+    }, 8000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   // ─── WhatsApp Messages (real-time) ─────────────────────────────────────────
