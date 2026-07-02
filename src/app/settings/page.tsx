@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { businessProfileService, productSettingsService, whatsappSettingsService, ShippingMethod, PickupStation } from '@/lib/db';
 import { createInstance, createInstanceWithPairing, getConnectionState, getQRCode, getPairingCode, disconnectInstance, logoutInstance, setWebhook } from '@/lib/evolution';
 import BottomNav from '../components/BottomNav';
+import MoreSheet from '../components/MoreSheet';
 import SettingsPageHeader from './components/SettingsPageHeader';
 import LogoutDialog from './components/LogoutDialog';
 import Snackbar from './components/Snackbar';
@@ -207,6 +208,7 @@ export default function SettingsPage() {
   // Bottom Nav
   const [navIndex, setNavIndex] = useState(4); // Settings doesn't have a dedicated nav tab
   const [fabOpen, setFabOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   // ─── Tabs (matching WhatsApp WAMORGAN exactly) ───
   const tabs: { id: SettingsTab; label: string; icon: string; brand?: boolean }[] = [
@@ -1559,8 +1561,11 @@ export default function SettingsPage() {
           router.push(routes[i]);
         }}
         onFabClick={() => setFabOpen(!fabOpen)}
-        onMoreClick={() => {}}
+        onMoreClick={() => setMoreSheetOpen(true)}
       />
+
+      {/* More Sheet */}
+      <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
 
       {/* Snackbar */}
       <Snackbar message={snackbar.message} type={snackbar.type} visible={snackbar.visible} onHide={hideToast} />

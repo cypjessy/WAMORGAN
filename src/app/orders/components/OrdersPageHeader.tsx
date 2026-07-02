@@ -26,23 +26,24 @@ export default function OrdersPageHeader({
       <div className="page-header-top">
         <h1>Orders</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="header-count" style={{ cursor: 'default' }}>{totalCount} orders</span>
           {pendingCancellations > 0 && (
             <button
               onClick={onCancellationsClick}
               style={{
                 padding: '6px 14px', borderRadius: 'var(--radius-full)',
-                background: 'var(--error-soft)', border: '1.5px solid rgba(239,68,68,0.3)',
-                color: 'var(--error)', fontSize: 12, fontWeight: 700,
+                background: 'var(--warning-soft)', border: '1.5px solid var(--border-subtle)',
+                color: 'var(--warning)', fontSize: 12, fontWeight: 700,
                 fontFamily: 'inherit', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
               }}
+              title="View cancellation requests"
             >
-              <i className="fas fa-ban"></i>
-              {pendingCancellations} Cancellation{pendingCancellations > 1 ? 's' : ''}
+              <i className="fas fa-ban" style={{ fontSize: 10 }}></i>
+              {pendingCancellations}
             </button>
           )}
-          <span className="header-count">{totalCount} orders</span>
         </div>
       </div>
       <div className="search-bar">

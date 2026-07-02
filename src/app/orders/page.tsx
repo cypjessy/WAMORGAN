@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { orderService, businessProfileService, cancellationRequestService } from '@/lib/db';
@@ -11,6 +11,7 @@ import { useInstanceName } from '@/utils/useInstanceName';
 import BottomNav from '../components/BottomNav';
 import OrdersPageHeader from './components/OrdersPageHeader';
 import SummaryCards from './components/SummaryCards';
+import OrdersNotificationCard from './components/OrdersNotificationCard';
 import DateRangeBar from './components/DateRangeBar';
 import StatusTabs from './components/StatusTabs';
 import OrderCard from './components/OrderCard';
@@ -129,9 +130,22 @@ export default function OrdersPage() {
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
 
+  // Status group mapping — groups related Firestore statuses into unified tab labels
+  const statusGroup: Record<string, string[]> = {
+    all: [],
+    pending: ['pending', 'confirmed'],
+    processing: ['processing', 'shipped'],
+    completed: ['completed', 'delivered'],
+    cancelled: ['cancelled', 'refunded'],
+  };
+
   function getStatusCounts(orders: LocalOrder[]): Record<string, number> {
     const counts: Record<string, number> = { all: orders.length };
-    orders.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
+    Object.keys(statusGroup).forEach(key => {
+      if (key === 'all') return;
+      const statuses = statusGroup[key];
+      counts[key] = orders.filter(o => statuses.includes(o.status)).length;
+    });
     return counts;
   }
 
@@ -163,6 +177,48 @@ export default function OrdersPage() {
   const [cancelRequestsLoading, setCancelRequestsLoading] = useState(false);
   const [cancelRequestsOpen, setCancelRequestsOpen] = useState(false);
   const pendingCancelCount = cancelRequests.filter((r: any) => r.status === 'pending').length;
+  const newOrderCount = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+
+  // Recent notifications from cancellations + new orders
+  const recentNotifications = useMemo(() => {
+    const items: Array<{ id: string; type: 'cancellation' | 'new_order'; orderNumber: string; customerName: string; time: string; amount?: number }> = [];
+    // Add pending cancellation requests
+    const pendingCancels = cancelRequests.filter((r: any) => r.status === 'pending');
+    pendingCancels.forEach((r: any) => {
+      items.push({
+        id: `cancel-${r.id}`,
+        type: 'cancellation',
+        orderNumber: r.orderNumber,
+        customerName: r.customerName || 'Customer',
+        time: r.requestedAt?.toDate?.()?.toISOString() || r.requestedAt || '',
+      });
+    });
+    // Add new unprocessed orders
+    const newOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
+    newOrders.forEach(o => {
+      const orderDate = o.date ? new Date(o.date + ' ' + o.time).toISOString() : '';
+      items.push({
+        id: `order-${o.id}`,
+        type: 'new_order',
+        orderNumber: o.id,
+        customerName: o.customer,
+        time: orderDate || '',
+        amount: o.total,
+      });
+    });
+    // Sort by time descending (newest first)
+    items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    return items;
+  }, [cancelRequests, orders]);
+
+  const handleNotificationOrderClick = useCallback((orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      setActiveStatus('all');
+      setSelectedOrder(order);
+      setDetailSheetOpen(true);
+    }
+  }, [orders]);
 
   // Sheets
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
@@ -236,7 +292,10 @@ export default function OrdersPage() {
 
   // Filter orders
   const filteredOrders = orders.filter((o) => {
-    if (activeStatus !== 'all' && o.status !== activeStatus) return false;
+    if (activeStatus !== 'all') {
+      const allowedStatuses = statusGroup[activeStatus] || [activeStatus];
+      if (!allowedStatuses.includes(o.status)) return false;
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const itemNames = o.items.map(i => i.name.toLowerCase()).join(' ');
@@ -454,6 +513,14 @@ export default function OrdersPage() {
         />
 
         <SummaryCards totalRevenue={totalRevenue} totalOrders={orders.length} />
+
+        <OrdersNotificationCard
+          pendingCancellations={pendingCancelCount}
+          newOrders={newOrderCount}
+          recentNotifications={recentNotifications}
+          onCancellationsClick={() => setCancelRequestsOpen(true)}
+          onOrderClick={handleNotificationOrderClick}
+        />
 
         <DateRangeBar
           dateRangeText={dateRangeText}

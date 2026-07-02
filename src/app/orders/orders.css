@@ -638,6 +638,12 @@
 .btn-ghost { background: transparent; color: var(--text-secondary); border: 1.5px solid var(--border-subtle); }
 .btn-ghost:active { transform: scale(0.97); background: var(--bg-elevated); }
 
+/* ─── Notifications Card ─── */
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 /* Empty State */
 .empty-state {
   display: none;
