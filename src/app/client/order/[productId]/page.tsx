@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { productService, orderService, businessProfileService } from '@/lib/db';
-import type { ShippingMethod } from '@/lib/db';
+import type { ShippingMethod, PickupStation } from '@/lib/db';
 import { sendOrderConfirmation } from '@/lib/webhook-handlers/order-notification';
 import Snackbar from '../../cart/components/Snackbar';
 
@@ -28,8 +28,13 @@ export default function ProductOrderPage() {
   const [loading, setLoading] = useState(true);
 
   // Store config from admin settings
+  const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [selectedShipping, setSelectedShipping] = useState('');
+  const [pickupStations, setPickupStations] = useState<PickupStation[]>([]);
+  const [selectedCounty, setSelectedCounty] = useState('');
+  const [selectedTown, setSelectedTown] = useState('');
+  const [selectedPickupStation, setSelectedPickupStation] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodDef[]>([]);
   const [rawPaymentConfig, setRawPaymentConfig] = useState<any>(null);
 
@@ -40,8 +45,18 @@ export default function ProductOrderPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+
+  // Derived data
+  const counties = useMemo(() => [...new Set(pickupStations.map(s => s.county))].sort(), [pickupStations]);
+  const towns = useMemo(() =>
+    [...new Set(pickupStations.filter(s => s.county === selectedCounty).map(s => s.town))].sort(),
+    [pickupStations, selectedCounty]
+  );
+  const stationsForTown = useMemo(() =>
+    pickupStations.filter(s => s.town === selectedTown && s.county === selectedCounty),
+    [pickupStations, selectedCounty, selectedTown]
+  );
 
   // UI state
   const [placing, setPlacing] = useState(false);
@@ -71,9 +86,8 @@ export default function ProductOrderPage() {
         if (allSizes.length > 0) setSelectedSize(allSizes[0]);
       }
       if (config) {
-        const sm = config.shippingMethods || [];
-        setShippingMethods(sm);
-        if (sm.length > 0) setSelectedShipping(sm[0].id);
+        setShippingMethods(config.shippingMethods || []);
+        setPickupStations((config.pickupStations || []).filter(s => s.isActive));
         setRawPaymentConfig(config.paymentMethods || {});
         const pm = config.paymentMethods || {};
         const enabledPMs: PaymentMethodDef[] = [];
@@ -106,16 +120,20 @@ export default function ProductOrderPage() {
   const price = useMemo(() => product?.salePrice || product?.price || 0, [product]);
   const subtotal = price * quantity;
   const shippingCost = useMemo(() => {
+    if (deliveryMode === 'pickup') return 0;
     const sm = shippingMethods.find(s => s.id === selectedShipping);
     return sm ? parseFloat(sm.price) || 0 : 0;
-  }, [selectedShipping, shippingMethods]);
+  }, [deliveryMode, selectedShipping, shippingMethods]);
   const total = subtotal + shippingCost;
 
   const validate = (): string | null => {
     if (!customerName.trim()) return 'Please enter your name';
     if (!customerPhone.trim()) return 'Please enter your phone number';
-    if (!deliveryAddress.trim()) return 'Please enter your delivery address';
-    if (shippingMethods.length > 0 && !selectedShipping) return 'Please select a shipping method';
+    if (deliveryMode === 'delivery') {
+      if (shippingMethods.length > 0 && !selectedShipping) return 'Please select a shipping method';
+    } else {
+      if (!selectedPickupStation) return 'Please select a pickup station';
+    }
     if (!paymentMethod) return 'Please select a payment method';
     return null;
   };
@@ -132,7 +150,7 @@ export default function ProductOrderPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
-        deliveryAddress: deliveryAddress.trim(),
+        deliveryAddress: deliveryMode === 'delivery' ? '' : undefined,
         items: [{
           productId: product.id,
           name: product.name + (selectedColor || selectedSize ? ` (${[selectedColor, selectedSize].filter(Boolean).join(', ')})` : ''),
@@ -148,8 +166,8 @@ export default function ProductOrderPage() {
         total,
         paymentMethod,
         paymentStatus: 'unpaid' as const,
-        deliveryMethod: 'delivery',
-        pickupLocation: sm?.name || '',
+        deliveryMethod: deliveryMode,
+        pickupLocation: deliveryMode === 'pickup' ? selectedPickupStation : '',
         source: 'order-link',
         status: 'pending' as const,
       };
@@ -173,7 +191,9 @@ export default function ProductOrderPage() {
           }],
           total,
           customer: customerName.trim(),
-          delivery: { method: 'delivery', address: deliveryAddress.trim() },
+          delivery: deliveryMode === 'delivery'
+            ? { method: 'delivery', address: '' }
+            : { method: 'pickup', pickupLocation: selectedPickupStation },
           paymentInfo: { method: pmLabel },
         }).catch(err => console.error('Failed to send WhatsApp confirmation:', err));
       }
@@ -358,24 +378,42 @@ export default function ProductOrderPage() {
           </div>
         </div>
 
-        {/* Delivery Address & Shipping */}
+        {/* Delivery Method - Toggle */}
         <div style={{ margin: '0 20px 16px', padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="fas fa-truck" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Delivery
+            <i className="fas fa-truck" style={{ color: 'var(--accent-primary)', fontSize: 14 }}></i> Delivery Method
           </h4>
-          <div className="form-group">
-            <label className="form-label">Delivery Address *</label>
-            <textarea
-              className="form-input"
-              placeholder="Enter your full delivery address"
-              value={deliveryAddress}
-              onChange={e => setDeliveryAddress(e.target.value)}
-              style={{ height: 'auto', padding: '14px 16px', minHeight: 70, resize: 'none', fontSize: 13, lineHeight: 1.5, fontFamily: 'inherit' }}
-            />
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={() => { setDeliveryMode('delivery'); setSelectedPickupStation(''); }}
+              style={{
+                flex: 1, padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                background: deliveryMode === 'delivery' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                border: `1.5px solid ${deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                color: deliveryMode === 'delivery' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+              <i className="fas fa-truck-fast"></i> Delivery
+            </button>
+            <button
+              onClick={() => { setDeliveryMode('pickup'); setSelectedShipping(''); }}
+              style={{
+                flex: 1, padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                background: deliveryMode === 'pickup' ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                border: `1.5px solid ${deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                color: deliveryMode === 'pickup' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+              <i className="fas fa-store"></i> Pickup
+            </button>
           </div>
-          {shippingMethods.length > 0 && (
+
+          {/* Delivery Options */}
+          {deliveryMode === 'delivery' && shippingMethods.length > 0 && (
             <>
-              <label className="form-label" style={{ marginTop: 8 }}>Shipping Method *</label>
+              <label className="form-label">Shipping Method *</label>
               {shippingMethods.map(sm => {
                 const active = selectedShipping === sm.id;
                 return (
@@ -408,6 +446,78 @@ export default function ProductOrderPage() {
                   </div>
                 );
               })}
+            </>
+          )}
+
+          {/* Pickup Options */}
+          {deliveryMode === 'pickup' && (
+            <>
+              <label className="form-label">Pickup Location *</label>
+              {pickupStations.length > 0 ? (
+                <>
+                  <select
+                    className="form-input form-select"
+                    value={selectedCounty}
+                    onChange={e => { setSelectedCounty(e.target.value); setSelectedTown(''); setSelectedPickupStation(''); }}
+                    style={{ marginBottom: 8 }}
+                  >
+                    <option value="">Select county</option>
+                    {counties.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  {selectedCounty && (
+                    <select
+                      className="form-input form-select"
+                      value={selectedTown}
+                      onChange={e => { setSelectedTown(e.target.value); setSelectedPickupStation(''); }}
+                      style={{ marginBottom: 8 }}
+                    >
+                      <option value="">Select town</option>
+                      {towns.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  )}
+                  {selectedTown && (
+                    <div>
+                      {stationsForTown.map(station => {
+                        const active = selectedPickupStation === station.stationName;
+                        return (
+                          <div key={station.id} onClick={() => setSelectedPickupStation(station.stationName)}
+                            style={{
+                              padding: 14, borderRadius: 'var(--radius-md)',
+                              background: active ? 'var(--accent-gradient-soft)' : 'var(--bg-card)',
+                              border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                              marginBottom: 8, cursor: 'pointer',
+                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{
+                                width: 22, height: 22, borderRadius: '50%',
+                                border: `2px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                background: active ? 'var(--accent-primary)' : 'transparent',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                              }}>
+                                {active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <h5 style={{ fontSize: 14, fontWeight: 700 }}>{station.stationName}</h5>
+                                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{station.address}</p>
+                                {station.contactPhone && (
+                                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{station.contactPhone}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <input
+                  className="form-input"
+                  placeholder="Enter pickup location"
+                  value={selectedPickupStation}
+                  onChange={e => setSelectedPickupStation(e.target.value)}
+                />
+              )}
             </>
           )}
         </div>
@@ -459,9 +569,9 @@ export default function ProductOrderPage() {
             <span style={{ fontSize: 14, fontWeight: 600 }}>KSh {subtotal.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>Shipping</span>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>{deliveryMode === 'pickup' ? 'Pickup' : 'Shipping'}</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: shippingCost === 0 ? 'var(--success)' : 'var(--text-primary)' }}>
-              {shippingCost === 0 ? 'FREE' : `KSh ${shippingCost.toFixed(2)}`}
+              {deliveryMode === 'pickup' ? 'FREE' : shippingCost === 0 ? 'FREE' : `KSh ${shippingCost.toFixed(2)}`}
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 14, marginTop: 4, borderTop: '2px solid var(--border-subtle)' }}>
