@@ -230,12 +230,6 @@ export default function ClientShopPage() {
     setQuickViewOpen(true);
   };
 
-  const handleViewDetails = (productId: string) => {
-    setQuickViewOpen(false);
-    if (!productId) return;
-    setTimeout(() => router.push(`/client/products/${productId}`), 300);
-  };
-
   const handleAddToCart = () => {
     if (quickViewProduct) {
       const image = quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '';
@@ -395,7 +389,6 @@ export default function ClientShopPage() {
         onAddToCart={handleAddToCart}
         onWishlistToggle={handleWishlistToggle}
         isWishlisted={quickViewProduct ? wishlist.has(quickViewProduct.name) : false}
-        onViewDetails={handleViewDetails}
       />
 
       {/* Filter & Sort Sheets */}

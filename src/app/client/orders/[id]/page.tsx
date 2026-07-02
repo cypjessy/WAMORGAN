@@ -5,7 +5,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { orderService } from '@/lib/db';
 import OrderStatusCard from './components/OrderStatusCard';
 import MapSection from './components/MapSection';
-import CourierCard from './components/CourierCard';
 import EstimateCard from './components/EstimateCard';
 import TimelineSection from './components/TimelineSection';
 import OrderItemsSection from './components/OrderItemsSection';
@@ -113,12 +112,8 @@ export default function OrderTrackingPage() {
     : order?.createdAt || '';
 
   const estDeliveryDate = order?.createdAt?.toDate
-    ? (() => { const d = new Date(order.createdAt.toDate()); d.setDate(d.getDate() + 4); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })()
-    : order?.updatedAt || '';
-
-  const daysLeft = order?.createdAt?.toDate
-    ? (() => { const diff = Math.ceil((new Date(order.createdAt.toDate()).getTime() + 4 * 86400000 - Date.now()) / 86400000); return diff > 0 ? `${diff} days` : 'Today'; })()
-    : '—';
+    ? (() => { const d = new Date(order.createdAt.toDate()); d.setDate(d.getDate() + 3); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })()
+    : (() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })();
 
   const timelineSteps = order ? buildTimeline(order) : [];
 
@@ -205,16 +200,9 @@ export default function OrderTrackingPage() {
           trackingNumber={order.id?.slice(-8).toUpperCase() || '—'}
         />
 
-        <MapSection onViewMap={() => showToast('Full map view coming soon', 'success')} />
+        <MapSection />
 
-        <CourierCard
-          avatar={order.deliveryMethod?.charAt(0)?.toUpperCase() || 'C'}
-          name={order.deliveryMethod || 'Standard Delivery'}
-          onCall={() => showToast('Calling courier...', 'success')}
-          onMessage={() => showToast('Messaging courier...', 'success')}
-        />
-
-        <EstimateCard estimate={estDeliveryDate || 'To be confirmed'} daysLeft={daysLeft} />
+        <EstimateCard estimate={estDeliveryDate || 'To be confirmed'} />
 
         <TimelineSection steps={timelineSteps} />
 

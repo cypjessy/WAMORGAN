@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { productService } from '@/lib/db';
+import { useAuth } from '@/context/AuthContext';
+import { productService, wishlistService } from '@/lib/db';
 import DetailHeader from './components/DetailHeader';
 import ImageGallery from './components/ImageGallery';
 import ProductInfo from './components/ProductInfo';
@@ -49,6 +50,7 @@ interface ProductDetailData {
 export default function ProductDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { user } = useAuth();
   const productId = params?.id as string;
 
   // State
@@ -59,6 +61,17 @@ export default function ProductDetailPage() {
   const [selectedSize, setSelectedSize] = useState('Standard');
   const [wishlisted, setWishlisted] = useState(false);
 
+  // Load wishlist state on mount — uses product names to match shop/search pages
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('wamorgan_wishlist');
+      if (saved && productData) {
+        const names: string[] = JSON.parse(saved);
+        setWishlisted(names.includes(productData.name));
+      }
+    } catch {}
+  }, [productData]);
+
   // Load product from Firestore
   useEffect(() => {
     if (!productId) return;
@@ -66,13 +79,46 @@ export default function ProductDetailPage() {
       try {
         const p = await productService.getProductById(productId);
         if (p) {
+          // Parse specs from product specifications or specs field
+          const specs: { label: string; value: string }[] = [];
+          if (p.specifications && typeof p.specifications === 'object') {
+            Object.entries(p.specifications).forEach(([key, val]) => {
+              specs.push({ label: key, value: String(val) });
+            });
+          }
+
+          // Parse colors and sizes from variants
+          const colors: { color: string; label: string }[] = [];
+          const sizes: { label: string; outOfStock?: boolean }[] = [];
+          const seenColors = new Set<string>();
+          const seenSizes = new Set<string>();
+          if (p.variants && Array.isArray(p.variants)) {
+            p.variants.forEach(v => {
+              const color = v.specs?.Color || v.specs?.color;
+              const size = v.specs?.Size || v.specs?.size;
+              if (color && !seenColors.has(color)) {
+                seenColors.add(color);
+                colors.push({ color: color.toLowerCase() === 'black' ? '#1a1a1a' : color.toLowerCase() === 'white' ? '#ffffff' : color.toLowerCase() === 'silver' ? '#c0c0c0' : color.toLowerCase() === 'blue' ? '#4a90d9' : color.toLowerCase() === 'red' ? '#ef4444' : color.toLowerCase() === 'green' ? '#10b981' : color.toLowerCase() === 'brown' ? '#8b4513' : color.toLowerCase() === 'gold' ? '#e8a838' : color.toLowerCase() === 'gray' ? '#6b7280' : '#6366f1', label: color });
+              }
+              if (size && !seenSizes.has(size)) {
+                seenSizes.add(size);
+                sizes.push({ label: size, outOfStock: v.stock === 0 });
+              }
+            });
+          }
+
+          // Build gallery from images array or imageUrl or emoji
+          const gallerySlides = (p.images?.length ? p.images : [p.imageUrl || p.emoji || '📦']).filter(Boolean) as string[];
+          // If no images, use emoji as fallback
+          if (gallerySlides.length === 0 && p.emoji) gallerySlides.push(p.emoji);
+
           setProductData({
             id: p.id,
-            brand: p.category || 'Store',
+            brand: p.category || p.brand || 'Store',
             name: p.name,
-            rating: 4.8,
-            reviewCount: '1.2k',
-            soldCount: '5.2k',
+            rating: p.rating || 4.8,
+            reviewCount: p.orders ? `${(p.orders >= 1000 ? (p.orders / 1000).toFixed(1) + 'k' : String(p.orders))}` : '0',
+            soldCount: p.sold ? `${p.sold >= 1000 ? (p.sold / 1000).toFixed(1) + 'k' : String(p.sold)}` : '0',
             price: p.price,
             oldPrice: p.originalPrice || undefined,
             discountLabel: p.originalPrice ? `SAVE KSh ${p.originalPrice - p.price}` : undefined,
@@ -81,11 +127,11 @@ export default function ProductDetailPage() {
             emoji: p.emoji || '📦',
             imageUrl: p.imageUrl,
             images: p.images || [],
-            colors: [],
-            sizes: [],
+            colors,
+            sizes,
             description: p.description || 'No description available.',
-            specs: [],
-            gallerySlides: (p.images?.length ? p.images : [p.imageUrl || p.emoji || '📦']).filter(Boolean) as string[],
+            specs,
+            gallerySlides,
             galleryBadge: p.originalPrice ? `${Math.round((1 - p.price / p.originalPrice) * 100)}% OFF` : undefined,
             reviews: [],
             ratingBreakdown: [
@@ -145,12 +191,24 @@ export default function ProductDetailPage() {
   };
 
   const handleAddToCart = () => {
+    // Save to localStorage
+    try {
+      const saved = localStorage.getItem('wamorgan_cart');
+      const items: Array<{ productId: string; image: string; name: string; price: number }> = saved ? JSON.parse(saved) : [];
+      items.push({
+        productId,
+        image: productData?.imageUrl || '',
+        name: productData?.name || '',
+        price: productData?.price || 0,
+      });
+      localStorage.setItem('wamorgan_cart', JSON.stringify(items));
+    } catch {}
     setCartDialogOpen(true);
   };
 
   const handleViewCart = () => {
     setCartDialogOpen(false);
-    showToast('Cart page coming soon', 'success');
+    router.push('/client/cart');
   };
 
   const handleWhatsApp = () => {
@@ -197,8 +255,33 @@ export default function ProductDetailPage() {
           onShare={() => setShareOpen(true)}
           wishlisted={wishlisted}
           onWishlistToggle={() => {
-            setWishlisted(!wishlisted);
-            showToast(wishlisted ? 'Removed from wishlist' : 'Added to wishlist', 'success');
+            const next = !wishlisted;
+            setWishlisted(next);
+
+            // Save to localStorage — uses product name to match shop/search pages
+            try {
+              const saved = localStorage.getItem('wamorgan_wishlist');
+              const names: string[] = saved ? JSON.parse(saved) : [];
+              const name = productData?.name || '';
+              if (next) {
+                if (!names.includes(name)) names.push(name);
+              } else {
+                const idx = names.indexOf(name);
+                if (idx !== -1) names.splice(idx, 1);
+              }
+              localStorage.setItem('wamorgan_wishlist', JSON.stringify(names));
+            } catch {}
+
+            // Save to Firestore if logged in
+            if (user) {
+              if (next) {
+                wishlistService.addToWishlist(user.uid, productId).catch(() => {});
+              } else {
+                wishlistService.removeFromWishlist(user.uid, productId).catch(() => {});
+              }
+            }
+
+            showToast(next ? 'Added to wishlist' : 'Removed from wishlist', 'success');
           }}
         />
 

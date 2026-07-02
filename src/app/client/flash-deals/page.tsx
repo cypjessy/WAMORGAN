@@ -112,11 +112,6 @@ export default function FlashDealsPage() {
     }
   }, [products, wishlist]);
 
-  const handleViewDetails = (productId: string) => {
-    setQuickViewOpen(false);
-    setTimeout(() => router.push(`/client/products/${productId}`), 300);
-  };
-
   return (
     <div className="app-container">
       <div className="bg-mesh"></div>
@@ -194,7 +189,6 @@ export default function FlashDealsPage() {
         onAddToCart={handleAddToCart}
         onWishlistToggle={handleWishlistToggle}
         isWishlisted={quickViewProduct ? wishlist.has(quickViewProduct.name) : false}
-        onViewDetails={handleViewDetails}
       />
 
       <ClientBottomNav activeIndex={0} cartCount={cartItems.length} />

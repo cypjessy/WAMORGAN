@@ -65,7 +65,6 @@ interface ProductViewSheetProps {
   onAddToCart: () => void;
   onWishlistToggle: (productId: string) => void;
   isWishlisted: boolean;
-  onViewDetails: (productId: string) => void;
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -73,7 +72,7 @@ interface ProductViewSheetProps {
 export default function ProductViewSheet({
   open, onClose, product, quantity,
   onChangeQty, onAddToCart, onWishlistToggle,
-  isWishlisted, onViewDetails,
+  isWishlisted,
 }: ProductViewSheetProps) {
   if (!product) return null;
 
@@ -92,14 +91,14 @@ export default function ProductViewSheet({
   const categoryIcon = categoryIcons[product.category?.toLowerCase() || 'other'] || '📦';
 
   // Format price as currency string
-  const fmtPrice = (val: number) => 'KSh ' + val.toFixed(2);
+  const fmtPrice = (val: number) => 'KSh ' + val.toLocaleString();
 
   return (
     <>
       <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={onClose} />
-      <div className={`bottom-sheet ${open ? 'active' : ''}`}>
+      <div className={`bottom-sheet ${open ? 'active' : ''}`} style={{ paddingBottom: 0, paddingTop: 0 }}>
         <div className="sheet-handle" />
-        <div className="sheet-content" style={{ paddingBottom: 40 }}>
+        <div className="sheet-content" style={{ flex: 1, overflowY: 'auto' }}>
 
           {/* ── Hero Image ── */}
           <div
@@ -230,84 +229,95 @@ export default function ProductViewSheet({
             </div>
           </div>
 
-          {/* ── Quantity Selector ── */}
-          <SectionDivider title="Quantity" />
+        </div>
+
+        {/* ── Bottom Action Bar (outside scroll area) ── */}
+        <div style={{
+          background: 'rgba(18, 18, 26, 0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderTop: '1px solid var(--border-subtle)',
+          padding: '12px 24px',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 12px)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          flexShrink: 0,
+        }}>
+          {/* Total Line + Qty Selector */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20,
-            marginBottom: 20, padding: '12px 0',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <button
-              onClick={() => onChangeQty(-1)}
-              disabled={quantity <= 1}
-              style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'var(--bg-elevated)', border: '1.5px solid var(--border-subtle)',
-                color: 'var(--text-primary)', fontSize: 18, cursor: 'pointer',
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2 }}>
+                Total
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-primary)' }}>
+                {fmtPrice(displayPrice * quantity)}
+              </div>
+            </div>
+            <div className="qty-selector">
+              <button onClick={() => onChangeQty(-1)} style={{
+                width: 36, height: 36, borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg-card)', border: 'none',
+                color: 'var(--text-primary)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: quantity <= 1 ? 0.4 : 1,
-                fontFamily: 'inherit', transition: 'all 0.15s ease',
-              }}
-            >
-              <i className="fas fa-minus"></i>
-            </button>
-            <span style={{ fontSize: 28, fontWeight: 800, minWidth: 48, textAlign: 'center' }}>
-              {quantity}
-            </span>
-            <button
-              onClick={() => onChangeQty(1)}
-              style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'var(--accent-gradient)', border: 'none',
-                color: 'white', fontSize: 18, cursor: 'pointer',
+                fontSize: 14, fontFamily: 'inherit', transition: 'all 0.15s ease',
+              }}>
+                <i className="fas fa-minus"></i>
+              </button>
+              <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>
+                {quantity}
+              </span>
+              <button onClick={() => onChangeQty(1)} style={{
+                width: 36, height: 36, borderRadius: 'var(--radius-sm)',
+                background: 'var(--accent-primary)', border: 'none',
+                color: 'white', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 16px rgba(232,168,56,0.3)',
-                fontFamily: 'inherit', transition: 'all 0.15s ease',
-              }}
-            >
-              <i className="fas fa-plus"></i>
-            </button>
+                fontSize: 14, fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                transition: 'all 0.15s ease',
+              }}>
+                <i className="fas fa-plus"></i>
+              </button>
+            </div>
           </div>
 
-          {/* ── Total Price Line ── */}
-          <div style={{
-            textAlign: 'center', marginBottom: 20,
-            fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500,
-          }}>
-            Total: <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-primary)' }}>
-              {fmtPrice(displayPrice * quantity)}
-            </span>
+          {/* Action Buttons Row */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              className="btn btn-primary"
+              onClick={onAddToCart}
+              style={{
+                flex: 1, height: 48, fontSize: 15,
+                opacity: isInStock ? 1 : 0.5,
+                border: 'none', borderRadius: 'var(--radius-md)',
+                background: 'var(--accent-gradient)', color: 'white',
+                cursor: isInStock ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 4px 24px rgba(99,102,241,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset',
+                transition: 'all 0.25s ease',
+              }}
+              disabled={!isInStock}
+            >
+              <i className="fas fa-cart-plus"></i>
+              {isInStock ? `Add to Cart` : 'Out of Stock'}
+            </button>
+            <button
+              onClick={() => onWishlistToggle(product.id)}
+              style={{
+                width: 48, height: 48, borderRadius: 'var(--radius-md)',
+                background: isWishlisted ? 'var(--error-soft)' : 'var(--bg-elevated)',
+                border: `1.5px solid ${isWishlisted ? 'rgba(239,68,68,0.2)' : 'var(--border-subtle)'}`,
+                color: isWishlisted ? 'var(--error)' : 'var(--text-secondary)',
+                cursor: 'pointer', fontSize: 18,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: 'inherit', transition: 'all 0.2s ease',
+              }}
+            >
+              <i className={`${isWishlisted ? 'fas' : 'far'} fa-heart`}></i>
+            </button>
           </div>
-
-          {/* ── Action Buttons ── */}
-          <button
-            className="btn btn-primary"
-            onClick={onAddToCart}
-            style={{ opacity: isInStock ? 1 : 0.5 }}
-            disabled={!isInStock}
-          >
-            <i className="fas fa-cart-plus"></i>
-            {isInStock ? `Add to Cart` : 'Out of Stock'}
-          </button>
-
-          <button
-            className="btn btn-secondary"
-            style={{ marginTop: 10 }}
-            onClick={() => onWishlistToggle(product.id)}
-          >
-            <i className={`${isWishlisted ? 'fas' : 'far'} fa-heart`}
-              style={{ color: isWishlisted ? 'var(--error)' : undefined }}
-            ></i>
-            {isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
-          </button>
-
-          <button
-            className="btn btn-ghost"
-            style={{ marginTop: 10 }}
-            onClick={() => { onViewDetails(product.id); onClose(); }}
-          >
-            <i className="fas fa-arrow-right"></i> View Full Details
-          </button>
-
         </div>
       </div>
     </>

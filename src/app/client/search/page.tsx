@@ -249,12 +249,6 @@ function SearchResultsContent() {
     if (p) handleWishClick(p.name);
   };
 
-  const handleViewDetails = (productId: string) => {
-    setQuickViewOpen(false);
-    if (!productId) return;
-    setTimeout(() => router.push(`/client/products/${productId}`), 300);
-  };
-
   const handleCardClick = (product: ResultProduct) => {
     const rawProduct = rawProducts.find((r: any) => r.name === product.name);
     setQuickViewProduct(rawProduct || product);
@@ -341,7 +335,6 @@ function SearchResultsContent() {
         onAddToCart={() => handleAddToCart()}
         onWishlistToggle={handleWishlistToggle}
         isWishlisted={quickViewProduct ? wishlist.has(quickViewProduct.name) : false}
-        onViewDetails={handleViewDetails}
       />
 
       {/* Dialogs */}

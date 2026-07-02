@@ -38,8 +38,10 @@ export default function ProductInfo({
         </div>
         <div className="product-sold"><strong>{soldCount}</strong> sold</div>
       </div>
-      <div className="product-price-row"><div className="product-price">
-            ${parseFloat(price).toFixed(2)}<span className="old">{oldPrice ? `KSh ${parseFloat(oldPrice).toFixed(2)}` : ''}</span>
+      <div className="product-price-row">
+        <div className="product-price">
+          KSh {parseFloat(price).toLocaleString()}
+          {oldPrice && <span className="old">KSh {parseFloat(oldPrice).toLocaleString()}</span>}
         </div>
         {discountLabel && <span className="product-discount">{discountLabel}</span>}
       </div>
