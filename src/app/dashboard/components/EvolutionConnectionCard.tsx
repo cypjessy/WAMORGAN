@@ -72,7 +72,7 @@ export default function EvolutionConnectionCard({ onOpenConnect, showToast, refr
       // Check connection state directly via Evolution API
       const config = await getEvolutionConfig();
 
-      if (!config.url) {
+      if (!config.apiUrl) {
         setStatus('disconnected');
         return;
       }
@@ -84,7 +84,7 @@ export default function EvolutionConnectionCard({ onOpenConnect, showToast, refr
         setConnectionInfo(prev => ({
           ...prev,
           phone: phone || prev.phone,
-          serverUrl: config.url || prev.serverUrl,
+          serverUrl: config.apiUrl || prev.serverUrl,
         }));
       } else {
         setStatus('disconnected');
@@ -112,7 +112,7 @@ export default function EvolutionConnectionCard({ onOpenConnect, showToast, refr
       // Check connection state directly
       const config = await getEvolutionConfig();
 
-      if (!config.url) {
+      if (!config.apiUrl) {
         setStatus('disconnected');
         showToast?.('Evolution API not configured. Add API URL in .env.local', 'error');
         return;

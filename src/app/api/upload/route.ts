@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import sharp from 'sharp';
 
 const BUNNY_STORAGE_HOST = process.env.NEXT_PUBLIC_BUNNY_STORAGE_HOST || '';
 const BUNNY_STORAGE_ZONE = process.env.NEXT_PUBLIC_BUNNY_STORAGE_ZONE || '';
@@ -11,7 +8,9 @@ const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '';
 
 // Initialize Firebase Admin with just the project ID (no service account needed
 // for token verification — uses Google's public key infrastructure)
-function ensureFirebaseAuth() {
+async function ensureFirebaseAuth() {
+  const { initializeApp, getApps } = await import('firebase-admin/app');
+  const { getAuth } = await import('firebase-admin/auth');
   if (!getApps().length) {
     initializeApp({ projectId: FIREBASE_PROJECT_ID });
   }
@@ -24,7 +23,7 @@ async function verifyAuth(request: NextRequest): Promise<{ uid: string } | null>
 
   try {
     const token = authHeader.slice(7);
-    const auth = ensureFirebaseAuth();
+    const auth = await ensureFirebaseAuth();
     const decoded = await auth.verifyIdToken(token);
     return { uid: decoded.uid };
   } catch {
@@ -52,6 +51,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Compress with Sharp (server-side fallback)
+    const sharp = (await import('sharp')).default;
     const compressed = await sharp(buffer)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })

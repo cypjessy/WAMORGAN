@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createInstance, getPairingCode, getConnectionState, fetchInstanceApiKey, getInstanceDetails, getEvolutionConfig, deleteInstance } from '@/lib/evolution';
-import { buildApiUrl } from '@/lib/api-config';
+import { createInstance, getPairingCode, getConnectionState, fetchInstanceApiKey, getInstanceDetails, getEvolutionConfig, deleteInstance, setWebhook } from '@/lib/evolution';
 
 interface FormData {
   firstName: string;
@@ -218,24 +217,12 @@ export default function AdminAccountPage() {
       (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
     const webhookUrl = `${deploymentUrl.replace(/\/+$/, '')}/api/webhook/evolution`;
     try {
-      const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceName,
-          webhookUrl,
-          events: [
-            'MESSAGES_UPSERT',
-            'MESSAGES_UPDATE',
-            'CONNECTION_UPDATE',
-            'QRCODE_UPDATED',
-          ],
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
+      await setWebhook(instanceName, webhookUrl, true, [
+        'MESSAGES_UPSERT',
+        'MESSAGES_UPDATE',
+        'CONNECTION_UPDATE',
+        'QRCODE_UPDATED',
+      ]);
     } catch (e) {
       console.error('Failed to set webhook:', e);
     }
@@ -253,7 +240,7 @@ export default function AdminAccountPage() {
       ]);
       evolutionUUID = details?.instance?.instanceId || details?.instance?.id || '';
       if (!apiKey && details?.instance?.apikey) apiKey = details.instance.apikey;
-      evolutionUrl = config.url;
+      evolutionUrl = config.apiUrl;
     } catch {}
     const data: EvolutionData = {
       instanceId: instanceName,

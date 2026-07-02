@@ -9,8 +9,7 @@ import { handleOrderStatusLookup } from '@/lib/webhook-handlers/order-status';
 import { startProductBrowseFlow, handleProductBrowseInput } from '@/lib/webhook-handlers/product-browse';
 import { sendPaymentInfo } from '@/lib/webhook-handlers/payment-info';
 import { logWebhookEvent, extractSenderInfo, extractMessageText, isGroupMessage } from '@/lib/webhook-logger';
-import { getAdminDb } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAdminDb, getFieldValue, getTimestamp } from '@/lib/firebase-admin';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,7 +37,7 @@ async function getFlowState(phone: string, instance: string): Promise<FlowState 
 
   // Fall back to Firestore
   try {
-    const db = getAdminDb();
+    const db = await getAdminDb();
     if (!db) return null;
     const snap = await db.collection('flowStates').doc(key).get();
     if (!snap.exists) return null;
@@ -65,8 +64,9 @@ async function setFlowState(phone: string, instance: string, state: Omit<FlowSta
 
   // Persist to Firestore
   try {
-    const db = getAdminDb();
+    const db = await getAdminDb();
     if (!db) return;
+    const Timestamp = await getTimestamp();
     await db.collection('flowStates').doc(key).set({
       ...data,
       updatedAt: Timestamp.now(),
@@ -81,7 +81,7 @@ async function clearFlowState(phone: string, instance: string) {
   flowStateCache.delete(key);
 
   try {
-    const db = getAdminDb();
+    const db = await getAdminDb();
     if (!db) return;
     await db.collection('flowStates').doc(key).delete().catch(() => {});
   } catch {
@@ -92,7 +92,7 @@ async function clearFlowState(phone: string, instance: string) {
 // ─── Firestore Helpers ───────────────────────────────────────────────────────
 
 async function getOrCreateConversation(phone: string, name: string): Promise<{ id: string; isNew: boolean }> {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return { id: phone, isNew: false };
 
   const convRef = db.collection('conversations');
@@ -101,6 +101,7 @@ async function getOrCreateConversation(phone: string, name: string): Promise<{ i
     return { id: existing.docs[0].id, isNew: false };
   }
 
+  const Timestamp = await getTimestamp();
   const docRef = await convRef.add({
     phone,
     name,
@@ -116,7 +117,7 @@ async function getOrCreateConversation(phone: string, name: string): Promise<{ i
 }
 
 async function saveMessageToFirestore(conversationId: string, msg: { type: string; text: string; time: string; ai?: boolean }) {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return;
   await db.collection('messages').add({
     conversationId,
@@ -130,8 +131,10 @@ async function saveMessageToFirestore(conversationId: string, msg: { type: strin
 }
 
 async function updateConversationLastMessage(conversationId: string, text: string, isReceived: boolean) {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return;
+  const Timestamp = await getTimestamp();
+  const FieldValue = await getFieldValue();
   const update: Record<string, any> = {
     lastMessage: text,
     lastMessageTime: Timestamp.now(),
@@ -146,23 +149,23 @@ async function updateConversationLastMessage(conversationId: string, text: strin
 // ─── Firestore Data Fetchers ─────────────────────────────────────────────────
 
 async function fetchProducts(): Promise<any[]> {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return [];
   try {
     const snap = await db.collection('products')
       .where('status', '==', 'active')
       .orderBy('createdAt', 'desc')
       .get();
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
   } catch {
     // Fallback: query without status filter if composite index doesn't exist
     const snap = await db.collection('products').orderBy('createdAt', 'desc').get();
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((p: any) => p.status === 'active' || !p.status);
+    return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })).filter((p: any) => p.status === 'active' || !p.status);
   }
 }
 
 async function fetchOrders(customerPhone?: string): Promise<any[]> {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return [];
   try {
     let query: any = db.collection('orders');
@@ -203,7 +206,7 @@ async function fetchOrders(customerPhone?: string): Promise<any[]> {
 }
 
 async function fetchPaymentMethods(): Promise<any> {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return null;
   const snap = await db.collection('businessProfiles').doc('main').get();
   if (!snap.exists) return null;
@@ -211,7 +214,7 @@ async function fetchPaymentMethods(): Promise<any> {
 }
 
 async function fetchWhatsAppSettings(): Promise<any> {
-  const db = getAdminDb();
+  const db = await getAdminDb();
   if (!db) return null;
   const snap = await db.collection('whatsappSettings').doc('main').get();
   if (!snap.exists) return null;
@@ -373,8 +376,9 @@ export async function POST(request: NextRequest) {
       const connData = Array.isArray(webhookData?.data) ? webhookData.data[0] || {} : (webhookData?.data || webhookData);
       const state = connData?.state || webhookData?.state || 'unknown';
       const phone = connData?.phone?.number || webhookData?.phone?.number || '';
-      const db = getAdminDb();
+      const db = await getAdminDb();
       if (db) {
+        const Timestamp = await getTimestamp();
         await db.collection('businessProfiles').doc('main').set({
           whatsappConnection: {
             instanceName,

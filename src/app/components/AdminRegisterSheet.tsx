@@ -38,6 +38,18 @@ export default function AdminRegisterSheet({ open, onClose, showToast }: AdminRe
         displayName: email.split('@')[0],
         role: 'admin',
       });
+
+      try {
+        const instanceName = `tenant_${cred.user.uid}`;
+        await fetch('/api/evolution/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instanceName, userId: cred.user.uid }),
+        });
+      } catch {
+        // Non-critical
+      }
+
       showToast('Admin account created!', 'success');
       onClose();
       router.push('/dashboard');

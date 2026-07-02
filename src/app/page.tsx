@@ -182,6 +182,19 @@ export default function LoginPage() {
         role: "client",
         phone: regPhone,
       });
+
+      // Auto-setup Evolution instance and webhook for new user
+      try {
+        const instanceName = `tenant_${cred.user.uid}`;
+        await fetch('/api/evolution/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instanceName, userId: cred.user.uid }),
+        });
+      } catch {
+        // Non-critical — user can set up later from dashboard
+      }
+
       showToast("Account created successfully!", "success");
       setTimeout(() => router.push("/client/shop"), 500);
     } catch (err: any) {

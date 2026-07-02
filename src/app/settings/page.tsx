@@ -6,8 +6,7 @@ import './settings.css';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
 import { businessProfileService, productSettingsService, whatsappSettingsService, ShippingMethod, PickupStation } from '@/lib/db';
-import { createInstance, createInstanceWithPairing, getConnectionState, getQRCode, getPairingCode, disconnectInstance, logoutInstance } from '@/lib/evolution';
-import { buildApiUrl } from '@/lib/api-config';
+import { createInstance, createInstanceWithPairing, getConnectionState, getQRCode, getPairingCode, disconnectInstance, logoutInstance, setWebhook } from '@/lib/evolution';
 import BottomNav from '../components/BottomNav';
 import SettingsPageHeader from './components/SettingsPageHeader';
 import LogoutDialog from './components/LogoutDialog';
@@ -330,19 +329,7 @@ export default function SettingsPage() {
     try {
       const webhookUrl = getWebhookUrl();
       const enabledEvents = getSelectedEvents();
-      const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceName,
-          webhookUrl,
-          events: enabledEvents,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
+      await setWebhook(instanceName, webhookUrl, true, enabledEvents);
     } catch (err) {
       console.error('Failed to update webhook config:', err);
       throw err;

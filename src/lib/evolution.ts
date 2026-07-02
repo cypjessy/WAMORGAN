@@ -1,13 +1,13 @@
 // ─── Evolution API Client Library ───────────────────────────────────────────
-// Handles WhatsApp instance management, messaging, QR/pairing, and webhooks
-// via the Evolution API (https://evo.campushub.co.ke or custom URL).
+// Routes all calls through the server-side proxy at /api/evolution/[...path]
+// to avoid exposing API credentials to the client.
 
-import { formatPhoneNumber } from '@/utils/phoneUtils';
+import { buildApiUrl } from '@/lib/api-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface EvolutionConfig {
-  url: string;
+  apiUrl: string;
   apiKey: string;
 }
 
@@ -27,11 +27,13 @@ let cachedConfig: EvolutionConfig | null = null;
 export async function getEvolutionConfig(): Promise<EvolutionConfig> {
   if (cachedConfig) return cachedConfig;
 
-  cachedConfig = {
-    url: process.env.NEXT_PUBLIC_EVOLUTION_URL || '',
-    apiKey: process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '',
-  };
-  return cachedConfig;
+  try {
+    const res = await fetch(buildApiUrl('/api/evolution-config'));
+    cachedConfig = await res.json() as EvolutionConfig;
+    return cachedConfig;
+  } catch {
+    return { apiUrl: '', apiKey: '' };
+  }
 }
 
 export function clearEvolutionConfigCache() {
@@ -44,20 +46,15 @@ async function callEvolutionApi(
   method: string,
   path: string,
   body?: any,
-  options?: { apiKey?: string; baseUrl?: string }
 ): Promise<any> {
   const config = await getEvolutionConfig();
-  const baseUrl = options?.baseUrl || config.url;
-  const apiKey = options?.apiKey || config.apiKey;
+  const apiKey = config?.apiKey || '';
 
-  if (!baseUrl) throw new Error('Evolution API URL not configured');
-  if (!apiKey) throw new Error('Evolution API Key not configured');
-
-  const url = `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+  const url = buildApiUrl(`/api/evolution/${path}`);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'apikey': apiKey,
+    'x-api-key': apiKey,
   };
 
   const res = await fetch(url, {
@@ -90,7 +87,6 @@ export async function createInstance(instanceName: string): Promise<any> {
       sync_full_history: false,
     });
   } catch (error: any) {
-    // If instance already exists, try to connect instead
     if (error.message?.includes('409') || error.message?.includes('already exists')) {
       return { alreadyExists: true, instanceName };
     }
@@ -127,7 +123,6 @@ export async function getInstanceDetails(instanceName: string): Promise<any> {
 export async function fetchInstanceApiKey(instanceName: string): Promise<string | null> {
   try {
     const data = await callEvolutionApi('GET', `instance/fetchApiKey/${instanceName}`);
-    // Handle both v1 and v2 response formats
     if (data?.apikey) return data.apikey;
     if (data?.token) return data.token;
     if (data?.hash) return data.hash;
@@ -211,7 +206,7 @@ export async function sendMessage(
   number: string,
   text: string
 ): Promise<any> {
-  const formattedNumber = `${formatPhoneNumber(number)}@s.whatsapp.net`;
+  const formattedNumber = `${number.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
   return callEvolutionApi('POST', `message/sendText/${instanceName}`, {
     number: formattedNumber,
     text,
@@ -225,7 +220,7 @@ export async function sendMediaMessage(
   mediaUrl: string,
   caption?: string
 ): Promise<any> {
-  const formattedNumber = `${formatPhoneNumber(number)}@s.whatsapp.net`;
+  const formattedNumber = `${number.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
   return callEvolutionApi('POST', `message/sendMedia/${instanceName}`, {
     number: formattedNumber,
@@ -240,7 +235,7 @@ export async function sendTypingIndicator(
   number: string,
   presence: 'composing' | 'recording' | 'paused'
 ): Promise<any> {
-  const formattedNumber = `${formatPhoneNumber(number)}@s.whatsapp.net`;
+  const formattedNumber = `${number.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
   return callEvolutionApi('POST', `chat/sendPresence/${instanceName}`, {
     number: formattedNumber,
@@ -254,7 +249,7 @@ export async function markMessageAsRead(
   number: string,
   messageId: string
 ): Promise<any> {
-  const formattedNumber = `${formatPhoneNumber(number)}@s.whatsapp.net`;
+  const formattedNumber = `${number.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
   return callEvolutionApi('POST', `chat/markMessageAsRead/${instanceName}`, {
     number: formattedNumber,
@@ -304,9 +299,8 @@ export async function sendCatalogMessage(
     sku?: string;
   }>
 ): Promise<any> {
-  const formattedNumber = `${formatPhoneNumber(number)}@s.whatsapp.net`;
+  const formattedNumber = `${number.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
-  // For list messages or catalog-style display
   const sections = products.map((p, i) => ({
     title: `${i + 1}. ${p.title}`,
     rows: [

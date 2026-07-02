@@ -1,9 +1,5 @@
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-
-let adminDb: Firestore | null = null;
-let adminApp: App | null = null;
+let adminDb: any = null;
+let adminApp: any = null;
 let initAttempted = false;
 
 function getProjectId(): string | undefined {
@@ -40,7 +36,7 @@ function hasValidCredentials(): boolean {
   return true;
 }
 
-function initFirebaseAdmin(): void {
+async function initFirebaseAdmin(): Promise<void> {
   if (initAttempted) return;
   initAttempted = true;
 
@@ -50,6 +46,9 @@ function initFirebaseAdmin(): void {
   }
 
   try {
+    const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+
     adminApp = getApps().length === 0
       ? initializeApp({
           credential: cert({
@@ -67,16 +66,38 @@ function initFirebaseAdmin(): void {
   }
 }
 
-export function getAdminDb(): Firestore | null {
-  if (!adminDb && !initAttempted) initFirebaseAdmin();
+export async function getAdminDb(): Promise<any> {
+  if (!adminDb && !initAttempted) await initFirebaseAdmin();
   return adminDb;
 }
 
-export function getAdminAuth() {
-  if (!adminApp && !initAttempted) initFirebaseAdmin();
+export async function getAdminAuth() {
+  if (!adminApp && !initAttempted) await initFirebaseAdmin();
   if (!adminApp) return null;
+  const { getAuth } = await import('firebase-admin/auth');
   return getAuth(adminApp);
 }
 
-initFirebaseAdmin();
 export { adminDb };
+
+// Lazily-loaded firestore utilities to avoid static import of firebase-admin modules (Vercel compat)
+let _FieldValue: any = null;
+let _Timestamp: any = null;
+
+async function ensureFirestoreUtils() {
+  if (!_FieldValue) {
+    const mod = await import('firebase-admin/firestore');
+    _FieldValue = mod.FieldValue;
+    _Timestamp = mod.Timestamp;
+  }
+}
+
+export async function getFieldValue() {
+  await ensureFirestoreUtils();
+  return _FieldValue;
+}
+
+export async function getTimestamp() {
+  await ensureFirestoreUtils();
+  return _Timestamp;
+}

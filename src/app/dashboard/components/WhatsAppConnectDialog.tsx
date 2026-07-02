@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { businessProfileService } from '@/lib/db';
-import { createInstance, createInstanceWithPairing, getQRCode, getPairingCode, getConnectionState } from '@/lib/evolution';
-import { buildApiUrl } from '@/lib/api-config';
+import { createInstance, createInstanceWithPairing, getQRCode, getPairingCode, getConnectionState, setWebhook, fetchInstanceApiKey } from '@/lib/evolution';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -86,25 +85,12 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
       (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
     const webhookUrl = `${deploymentUrl.replace(/\/+$/, '')}/api/webhook/evolution`;
 
-    const res = await fetch(buildApiUrl('/api/evolution/configure-webhook'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instanceName,
-        webhookUrl,
-        events: [
-          'MESSAGES_UPSERT',
-          'MESSAGES_UPDATE',
-          'CONNECTION_UPDATE',
-          'QRCODE_UPDATED',
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
+    await setWebhook(instanceName, webhookUrl, true, [
+      'MESSAGES_UPSERT',
+      'MESSAGES_UPDATE',
+      'CONNECTION_UPDATE',
+      'QRCODE_UPDATED',
+    ]);
   }, [instanceName]);
 
   // ─── Handle successful connection ───────────────────────────────────────
@@ -112,15 +98,30 @@ export default function WhatsAppConnectDialog({ open, onClose, onConnected, show
   const handleConnected = useCallback(async () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (pollRef.current) clearInterval(pollRef.current);
+
     try {
       await setupWebhook();
       showToast?.('Webhook configured successfully', 'success');
     } catch {
       showToast?.('Failed to configure webhook — you can set it up in Settings', 'error');
     }
+
+    // Fetch and save Evolution credentials to Firestore
+    try {
+      const apiKey = await fetchInstanceApiKey(instanceName);
+      if (apiKey) {
+        await businessProfileService.saveProfile({
+          whatsappInstanceName: instanceName,
+        });
+        console.log('[WhatsAppConnect] Saved Evolution credentials to Firestore');
+      }
+    } catch {
+      console.warn('[WhatsAppConnect] Failed to save instance credentials');
+    }
+
     setStep('connected');
     onConnected?.();
-  }, [onConnected, setupWebhook, showToast]);
+  }, [onConnected, setupWebhook, showToast, instanceName]);
 
   // ─── Poll for connection ────────────────────────────────────────────────
 
