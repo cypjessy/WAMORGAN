@@ -358,6 +358,42 @@ async function sendWhatsAppMessage(tenantId: string, phone: string, message: str
   }
 }
 
+async function sendMediaViaEvolution(
+  instanceName: string,
+  phone: string,
+  mediaUrl: string,
+  caption: string
+): Promise<void> {
+  try {
+    const { url, apiKey } = getEvolutionCredentials();
+    if (!url || !apiKey) {
+      console.warn('[Webhook] Evolution API not configured, cannot send media');
+      return;
+    }
+    const formattedNumber = await formatJid(phone);
+    const apiUrl = `${url.replace(/\/+$/, '')}/message/sendMedia/${instanceName}`;
+    console.log(`[Webhook] sendMediaViaEvolution: sending image to ${phone} caption="${caption.substring(0, 50)}..."`);
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+      body: JSON.stringify({
+        number: formattedNumber,
+        mediatype: 'image',
+        mimetype: 'image/jpeg',
+        caption,
+        media: mediaUrl,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[Webhook] Send media failed (${res.status}): ${body}`);
+    }
+  } catch (error: any) {
+    console.error('[Webhook] Error sending media:', error?.message);
+  }
+}
+
 // ─── Main Webhook Handler ───────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -638,6 +674,7 @@ async function handleMenuChoice(
 ): Promise<string | null> {
   switch (choice) {
     case '1': {
+      const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'https://wamorgan.vercel.app';
       // startProductBrowseFlow handles its own flow state internally
       await startProductBrowseFlow(instanceName, phone, {
         sendMessage: (tid, p, msg) => sendWhatsAppMessage(tid, p, msg),
@@ -645,6 +682,8 @@ async function handleMenuChoice(
         stopTyping: (t, p) => sendTypingIndicatorViaAPI(t, p, 'paused'),
         setFlowState: async (tid, p, state) => { await setFlowState(p, tid, state); },
         getProducts: fetchProducts,
+        sendMedia: (tid, p, url, cap) => sendMediaViaEvolution(tid, p, url, cap),
+        baseUrl: baseAppUrl,
       });
       return null;
     }
@@ -708,12 +747,15 @@ async function handleFlowStep(
   phone: string,
   instanceName: string
 ): Promise<string | null> {
+  const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'https://wamorgan.vercel.app';
   const browseDeps = {
     sendMessage: (tid: string, p: string, msg: string) => sendWhatsAppMessage(tid, p, msg),
     startTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'composing'),
     stopTyping: (t: string, p: string) => sendTypingIndicatorViaAPI(t, p, 'paused'),
     setFlowState: async (tid: string, p: string, state: any) => { await setFlowState(p, tid, state); },
     getProducts: fetchProducts,
+    sendMedia: (tid: string, p: string, url: string, cap: string) => sendMediaViaEvolution(tid, p, url, cap),
+    baseUrl: baseAppUrl,
   };
 
   // Handle product browse flow (set by startProductBrowseFlow / product-browse.ts)
@@ -755,6 +797,8 @@ async function handleFlowStep(
           await setFlowState(phoneNum, tenantId, state);
         },
         getProducts: fetchProducts,
+        sendMedia: (tid: string, p: string, url: string, cap: string) => sendMediaViaEvolution(tid, p, url, cap),
+        baseUrl: baseAppUrl,
       });
       return null;
     } catch (err) {
@@ -871,6 +915,8 @@ async function handleFlowStep(
             await setFlowState(phoneNum, tenantId, state);
           },
           getProducts: fetchProducts,
+          sendMedia: (tid: string, p: string, url: string, cap: string) => sendMediaViaEvolution(tid, p, url, cap),
+          baseUrl: baseAppUrl,
         });
         return null;
       } catch (err) {

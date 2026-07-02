@@ -11,6 +11,7 @@ export interface Deps {
   sendMedia?: (tenantId: string, phone: string, mediaUrl: string, caption: string) => Promise<void>;
   setFlowState: (tenantId: string, phone: string, state: any) => Promise<void>;
   getProducts?: () => Promise<any[]>;
+  baseUrl?: string;
 }
 
 // ─── Fuzzy Matching ─────────────────────────────────────────────────────────
@@ -174,22 +175,43 @@ export async function handleProductSearch(
 
     for (let idx = 0; idx < results.length; idx++) {
       const product = results[idx];
-      const stockLabel = product.stock === 0
-        ? '❌ Out of stock'
-        : product.stock <= 5
-          ? `⚠️ Only ${product.stock} left`
-          : `✅ In stock`;
+      const imageUrl = product.images?.[0] || product.imageUrl || product.image;
 
-      let productText = `*${idx + 1}. ${product.name}*  ⭐\n`;
-      productText += `   💰 KSh ${product.price.toFixed(2)}\n`;
-      productText += `   📦 ${stockLabel}\n`;
+      let productText = `*${idx + 1}. ${product.name}*\n`;
+
+      if (product.salePrice && product.salePrice < product.price) {
+        productText += `   💰 ~~KES ${product.price?.toLocaleString()}~~ → *KES ${product.salePrice.toLocaleString()}* 🔥\n`;
+      } else {
+        productText += `   💰 KES ${product.price?.toLocaleString() || '0'}\n`;
+      }
+
+      if (product.stock !== undefined) {
+        const stockLabel = product.stock === 0
+          ? '❌ Out of stock'
+          : product.stock <= 5
+            ? `⚠️ Only ${product.stock} left`
+            : `✅ In stock (${product.stock})`;
+        productText += `   📦 ${stockLabel}\n`;
+      }
+
       if (product.brand) productText += `   🏷️ Brand: ${product.brand}\n`;
-      productText += `   📂 ${product.category}\n`;
+      if (product.category || product.categoryName) {
+        productText += `   📂 Category: ${product.category || product.categoryName}\n`;
+      }
       if (product.description) {
         productText += `   📝 ${product.description.substring(0, 120)}${product.description.length > 120 ? '...' : ''}\n`;
       }
 
-      await deps.sendMessage(tenantId, phone, productText);
+      const orderLink = product.orderLink || `${deps.baseUrl || ''}/order?tenant=${tenantId}&product=${product.id}&phone=${phone}`;
+      if (orderLink) {
+        productText += `   🛒 *Order here:* ${orderLink}\n`;
+      }
+
+      if (imageUrl && deps.sendMedia) {
+        await deps.sendMedia(tenantId, phone, imageUrl, productText);
+      } else {
+        await deps.sendMessage(tenantId, phone, productText);
+      }
 
       if (idx < results.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 400));

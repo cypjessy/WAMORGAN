@@ -7,6 +7,8 @@ export interface ProductBrowseDeps {
   stopTyping: (tenantId: string, phone: string) => Promise<void>;
   setFlowState: (tenantId: string, phone: string, state: any) => Promise<void>;
   getProducts?: () => Promise<any[]>;
+  sendMedia?: (tenantId: string, phone: string, mediaUrl: string, caption: string) => Promise<void>;
+  baseUrl?: string;
 }
 
 const BROWSE_CATEGORIES = [
@@ -60,20 +62,59 @@ const BROWSE_CATEGORIES = [
   },
 ];
 
-function formatProductText(product: any, index: number): string {
-  const stockLabel = product.stock === 0
-    ? '❌ Out of stock'
-    : product.stock <= 5
-      ? `⚠️ Only ${product.stock} left`
-      : '✅ In stock';
-
+function formatProductText(product: any, index: number, tenantId?: string, phone?: string, baseUrl?: string): string {
   let text = `*${index}. ${product.name}*\n`;
-  text += `   💰 KSh ${Number(product.price || 0).toFixed(2)}\n`;
-  text += `   📦 ${stockLabel}\n`;
-  if (product.brand) text += `   🏷️ Brand: ${product.brand}\n`;
-  if (product.description) {
-    text += `   📝 ${product.description.substring(0, 100)}${product.description.length > 100 ? '...' : ''}\n`;
+
+  if (product.salePrice && product.salePrice < product.price) {
+    text += `   💰 ~~KES ${product.price?.toLocaleString()}~~ → *KES ${product.salePrice.toLocaleString()}* 🔥\n`;
+  } else {
+    text += `   💰 KES ${product.price?.toLocaleString() || '0'}\n`;
   }
+
+  if (product.stock !== undefined) {
+    const stockLabel = product.stock === 0
+      ? '❌ Out of stock'
+      : product.stock <= 5
+        ? `⚠️ Only ${product.stock} left`
+        : `✅ In stock (${product.stock})`;
+    text += `   📦 ${stockLabel}\n`;
+  }
+
+  if (product.description) {
+    text += `   📝 ${product.description.substring(0, 120)}${product.description.length > 120 ? '...' : ''}\n`;
+  }
+
+  if (product.brand) text += `   🏷️ Brand: ${product.brand}\n`;
+  if (product.category || product.categoryName) {
+    text += `   📂 Category: ${product.category || product.categoryName}\n`;
+  }
+
+  if (product.specs) {
+    const specLabels: Record<string, string> = {
+      color: '🎨 Colors',
+      colors: '🎨 Colors',
+      size: '📏 Sizes',
+      sizes: '📏 Sizes',
+      condition: '✨ Condition',
+      warranty: '🛡️ Warranty',
+    };
+    for (const [key, values] of Object.entries(product.specs)) {
+      if (Array.isArray(values) && values.length > 0) {
+        const label = specLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        text += `   ${label}: ${values.join(', ')}\n`;
+      }
+    }
+  }
+
+  if (product.condition && !product.specs?.condition) text += `   ✨ Condition: ${product.condition}\n`;
+  if (product.warranty) text += `   🛡️ Warranty: ${product.warranty}\n`;
+
+  if (product.orderLink) {
+    text += `   🛒 *Order here:* ${product.orderLink}\n`;
+  } else if (tenantId && phone && baseUrl && product.id) {
+    text += `   🛒 *Order here:* ${baseUrl}/order?tenant=${tenantId}&product=${product.id}&phone=${phone}\n`;
+  }
+
   return text;
 }
 
@@ -182,21 +223,20 @@ async function showCategoryProducts(
     return;
   }
 
-  const chunks: string[] = [];
-  let block = `📂 *${categoryName}*\n\n`;
   for (let i = 0; i < products.length; i++) {
-    const line = formatProductText(products[i], i + 1);
-    if (block.length + line.length > 1500) {
-      chunks.push(block);
-      block = '';
-    }
-    block += line + '\n';
-  }
-  if (block) chunks.push(block);
+    const product = products[i];
+    const imageUrl = product.images?.[0] || product.imageUrl || product.image;
+    const productText = formatProductText(product, i + 1, tenantId, phone, deps.baseUrl);
 
-  for (let i = 0; i < chunks.length; i++) {
-    await deps.sendMessage(tenantId, phone, chunks[i]);
-    if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 400));
+    if (imageUrl && deps.sendMedia) {
+      await deps.sendMedia(tenantId, phone, imageUrl, productText);
+    } else {
+      await deps.sendMessage(tenantId, phone, productText);
+    }
+
+    if (i < products.length - 1) {
+      await new Promise(r => setTimeout(r, 400));
+    }
   }
 
   await deps.sendMessage(tenantId, phone, `0️⃣ Back to categories`);
@@ -292,21 +332,20 @@ async function handleSubcategorySelection(
     return;
   }
 
-  const chunk: string[] = [];
-  let block = `📦 *${selectedBrand}*\n\n`;
   for (let i = 0; i < brandProducts.length; i++) {
-    const line = formatProductText(brandProducts[i], i + 1);
-    if (block.length + line.length > 1500) {
-      chunk.push(block);
-      block = '';
-    }
-    block += line + '\n';
-  }
-  if (block) chunk.push(block);
+    const product = brandProducts[i];
+    const imageUrl = product.images?.[0] || product.imageUrl || product.image;
+    const productText = formatProductText(product, i + 1, tenantId, phone, deps.baseUrl);
 
-  for (let i = 0; i < chunk.length; i++) {
-    await deps.sendMessage(tenantId, phone, chunk[i]);
-    if (i < chunk.length - 1) await new Promise(r => setTimeout(r, 400));
+    if (imageUrl && deps.sendMedia) {
+      await deps.sendMedia(tenantId, phone, imageUrl, productText);
+    } else {
+      await deps.sendMessage(tenantId, phone, productText);
+    }
+
+    if (i < brandProducts.length - 1) {
+      await new Promise(r => setTimeout(r, 400));
+    }
   }
 
   await deps.sendMessage(tenantId, phone, `0️⃣ Back to categories`);
