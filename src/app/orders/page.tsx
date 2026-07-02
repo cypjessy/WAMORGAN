@@ -258,7 +258,14 @@ export default function OrdersPage() {
     if (!selectedOrder?._firestoreId) return;
     try {
       const oldStatus = selectedOrder.status;
-      await orderService.updateOrder(selectedOrder._firestoreId, { status: status as any });
+      // Also update paymentStatus based on status: processing/completed → paid, pending → unpaid
+      const updateData: any = { status: status as any };
+      if (status === 'processing' || status === 'completed') {
+        updateData.paymentStatus = 'paid';
+      } else if (status === 'pending') {
+        updateData.paymentStatus = 'unpaid';
+      }
+      await orderService.updateOrder(selectedOrder._firestoreId, updateData);
       if (selectedOrder.phone) {
         sendOrderStatusUpdate(selectedOrder.phone, selectedOrder.id, oldStatus, status, selectedOrder.customer);
       }
@@ -297,7 +304,7 @@ export default function OrdersPage() {
   const handleConfirmPaid = useCallback(async () => {
     if (!selectedOrder?._firestoreId) return;
     try {
-      await orderService.updateOrder(selectedOrder._firestoreId, { paymentStatus: 'paid' });
+      await orderService.updateOrder(selectedOrder._firestoreId, { paymentStatus: 'paid', status: 'processing' });
       if (selectedOrder.phone) {
         const msg = `✅ *Payment Confirmed — ${selectedOrder.id}*\n\nHi *${selectedOrder.customer}*,\n\nYour payment of KSh ${selectedOrder.total.toFixed(2)} has been received and confirmed! 🎉\n\nWe'll start processing your order right away. Thank you! 🙏`;
         await sendMessage(instanceName, selectedOrder.phone, msg);

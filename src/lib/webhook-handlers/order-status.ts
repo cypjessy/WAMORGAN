@@ -221,55 +221,14 @@ export async function handleOrderCancellation(
   const step = flowState.currentStep || 'init';
 
   if (step === 'init') {
-    // User saw the cancellation option and replied with 1 → ask for reason
+    // User replied with 1 → directly process cancellation with default reason
     if (text === '1') {
-      if (deps.setFlowState) {
-        await deps.setFlowState(tenantId, phone, {
-          step: 'order_detail',
-          flowName: 'order_cancellation',
-          currentStep: 'reason',
-          data: { order },
-          lastActivity: new Date().toISOString(),
-        });
-      }
-      if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
-      await deps.sendMessage(tenantId, phone,
-        `❓ *Why are you cancelling?*\n\n` +
-        `Please tell us the reason for cancellation.\n\n` +
-        `0️⃣ Go back`
-      );
+      await processCancellation(tenantId, phone, order, 'Customer requested cancellation via WhatsApp', deps);
     } else {
       if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
       await deps.sendMessage(tenantId, phone,
         `Reply *1️⃣* to request cancellation or *0️⃣* to go back.`
       );
-    }
-  } else if (step === 'reason') {
-    // User provided a reason → ask for confirmation
-    if (deps.setFlowState) {
-      await deps.setFlowState(tenantId, phone, {
-        step: 'order_detail',
-        flowName: 'order_cancellation',
-        currentStep: 'confirm',
-        data: { order, reason: text },
-        lastActivity: new Date().toISOString(),
-      });
-    }
-    if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
-    await deps.sendMessage(tenantId, phone,
-      `⚠️ *Confirm Cancellation*\n\n` +
-      `Are you sure you want to cancel *${order.orderNumber || order.id}*?\n\n` +
-      `Reason: ${text}\n\n` +
-      `1️⃣ - Yes, cancel this order\n` +
-      `0️⃣ - No, keep my order`
-    );
-  } else if (step === 'confirm') {
-    if (text === '1') {
-      await processCancellation(tenantId, phone, order, flowState.data?.reason, deps);
-    } else {
-      if (deps.clearFlowState) await deps.clearFlowState(tenantId, phone);
-      if (deps.stopTyping) await deps.stopTyping(tenantId, phone);
-      await deps.sendMessage(tenantId, phone, `👍 Your order is safe! No changes were made.\n\n0️⃣ Back to main menu`);
     }
   }
 }
