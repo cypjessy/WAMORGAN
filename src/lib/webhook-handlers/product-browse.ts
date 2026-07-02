@@ -160,7 +160,7 @@ export async function startProductBrowseFlow(
       const products = await deps.getProducts();
       const catMap = new Map<string, { name: string; icon: string; products: any[] }>();
       for (const p of products) {
-        const catName = p.categoryName || p.category || 'Uncategorized';
+        const catName = p.category || p.categoryName || 'Uncategorized';
         if (!catMap.has(catName)) {
           catMap.set(catName, { name: catName, icon: '📦', products: [] });
         }
