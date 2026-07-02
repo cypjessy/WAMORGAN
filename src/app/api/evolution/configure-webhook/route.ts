@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Evolution API not configured on server' }, { status: 500 });
     }
 
-    const url = `${evolutionUrl.replace(/\/+$/, '')}/instance/setWebhook/${instanceName}`;
+    const url = `${evolutionUrl.replace(/\/+$/, '')}/webhook/set/${instanceName}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         webhook: {
+          enabled: true,
           url: webhookUrl,
-          webhookByEvents: true,
+          webhookByEvents: false,
+          webhookBase64: false,
           events: events ?? [
             'MESSAGES_UPSERT',
             'MESSAGES_UPDATE',

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     const webhookUrl = `${deploymentUrl.replace(/\/+$/, '')}/api/webhook/evolution`;
 
     console.log('[Evolution Setup] Setting webhook:', webhookUrl);
-    const webhookRes = await fetch(`${baseUrl}/instance/setWebhook/${instanceName}`, {
+    const webhookRes = await fetch(`${baseUrl}/webhook/set/${instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         webhook: {
           enabled: true,
           url: webhookUrl,
-          webhookByEvents: true,
+          webhookByEvents: false,
           webhookBase64: false,
           events: [
             'MESSAGES_UPSERT',

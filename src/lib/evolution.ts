@@ -262,13 +262,15 @@ export async function markMessageAsRead(
 export async function setWebhook(
   instanceName: string,
   webhookUrl: string,
-  webhookByEvents: boolean = true,
+  webhookByEvents: boolean = false,
   events?: string[]
 ): Promise<any> {
-  return callEvolutionApi('POST', `instance/setWebhook/${instanceName}`, {
+  return callEvolutionApi('POST', `webhook/set/${instanceName}`, {
     webhook: {
+      enabled: true,
       url: webhookUrl,
       webhookByEvents,
+      webhookBase64: false,
       events: events ?? [
         'MESSAGES_UPSERT',
         'MESSAGES_UPDATE',
