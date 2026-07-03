@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import './settings.css';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { hapticsImpact, copyToClipboard } from '@/lib/capacitor';
 import { businessProfileService, productSettingsService, whatsappSettingsService, ShippingMethod, PickupStation } from '@/lib/db';
 import { createInstance, createInstanceWithPairing, getConnectionState, getQRCode, getPairingCode, disconnectInstance, logoutInstance, setWebhook } from '@/lib/evolution';
 import BottomNav from '../components/BottomNav';
@@ -14,15 +15,15 @@ import LogoutDialog from './components/LogoutDialog';
 import DeleteAccountDialog from './components/DeleteAccountDialog';
 import Snackbar from './components/Snackbar';
 
-const counties = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Nyeri', 'Machakos', 'Malindi', 'Naivasha'];
-type SettingsTab = 'profile' | 'products' | 'shipping' | 'pickup' | 'whatsapp' | 'payments' | 'security' | 'ai' | 'team';
-
-const shippingPresets = [
-  { name: 'Standard Delivery', price: '299', days: '5-7', desc: 'Delivered within a week' },
-  { name: 'Express Delivery', price: '599', days: '1-3', desc: 'Fast tracked shipping' },
-  { name: 'Same Day', price: '999', days: 'Same day', desc: 'Order before 12PM' },
-  { name: 'Free Shipping', price: '0', days: '7-14', desc: 'Free delivery, takes longer' },
+const kenyaCounties = [
+  'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu', 'Garissa', 'Homa Bay',
+  'Isiolo', 'Kajiado', 'Kakamega', 'Kericho', 'Kiambu', 'Kilifi', 'Kirinyaga', 'Kisii',
+  'Kisumu', 'Kitui', 'Kwale', 'Laikipia', 'Lamu', 'Machakos', 'Makueni', 'Mandera',
+  'Marsabit', 'Meru', 'Migori', 'Mombasa', "Murang'a", 'Nairobi', 'Nakuru', 'Nandi',
+  'Narok', 'Nyamira', 'Nyandarua', 'Nyeri', 'Samburu', 'Siaya', 'Taita-Taveta', 'Tana River',
+  'Tharaka-Nithi', 'Trans Nzoia', 'Turkana', 'Uasin Gishu', 'Vihiga', 'Wajir', 'West Pokot',
 ];
+type SettingsTab = 'profile' | 'products' | 'shipping' | 'pickup' | 'whatsapp' | 'payments' | 'security' | 'ai' | 'team';
 
 const welcomeTemplates = [
   { name: 'Friendly Greeting', icon: 'fa-hand-wave', color: '#3b82f6', message: "👋 Hi there! Welcome to {{business_name}}!\n\nWe're excited to have you here. How can we help you today?\n\n📞 Contact us: {{phone}}\n🌐 Visit: {{website}}" },
@@ -256,7 +257,7 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: string; brand?: boolean }[] = [
     { id: 'profile', label: 'Profile', icon: 'fa-store' },
     { id: 'products', label: 'Products', icon: 'fa-box' },
-    { id: 'shipping', label: 'Shipping', icon: 'fa-truck' },
+    { id: 'shipping', label: 'Shipping Fee', icon: 'fa-truck' },
     { id: 'pickup', label: 'Pickup', icon: 'fa-map-pin' },
     { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', brand: true },
     { id: 'payments', label: 'Payments', icon: 'fa-wallet' },
@@ -506,11 +507,6 @@ export default function SettingsPage() {
     showToast('Template applied!', 'success');
   };
 
-  const selectShippingPreset = (preset: typeof shippingPresets[0]) => {
-    setNewShipping({ name: preset.name, price: preset.price, estimatedDays: preset.days, description: preset.desc });
-    setShowShippingForm(true);
-  };
-
   const persistShippingMethods = useCallback(async (methods: ShippingMethod[]) => {
     try {
       await businessProfileService.saveShippingMethods(methods);
@@ -520,14 +516,15 @@ export default function SettingsPage() {
   }, []);
 
   const handleSaveShipping = () => {
-    if (!newShipping.name) { showToast('Please enter a shipping method name', 'error'); return; }
+    if (!newShipping.name) { showToast('Please select a county', 'error'); return; }
+    if (!newShipping.price && newShipping.price !== '0') { showToast('Please enter a shipping fee', 'error'); return; }
     let updated: ShippingMethod[];
     if (editingShippingId) {
       updated = shippingMethods.map(s => s.id === editingShippingId ? { ...s, ...newShipping } : s);
-      showToast('Shipping method updated!', 'success');
+      showToast('County fee updated!', 'success');
     } else {
       updated = [...shippingMethods, { id: Date.now().toString(), ...newShipping }];
-      showToast('Shipping method added!', 'success');
+      showToast('County fee added!', 'success');
     }
     setShippingMethods(updated);
     persistShippingMethods(updated);
@@ -640,15 +637,6 @@ export default function SettingsPage() {
   // ─── Profile Tab ───
   const renderProfileTab = () => (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
-        <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--accent-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: 'white', fontWeight: 700, boxShadow: '0 0 30px rgba(232,168,56,0.3)', position: 'relative' }}>
-          {profile.businessName.charAt(0)}
-          <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-primary)', border: '3px solid var(--bg-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, cursor: 'pointer' }}>
-            <i className="fas fa-camera"></i>
-          </div>
-        </div>
-      </div>
-
       <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
         <i className="fas fa-info-circle" style={{ marginRight: 6, color: 'var(--accent-primary)' }}></i> Basic Information
       </h4>
@@ -781,63 +769,45 @@ export default function SettingsPage() {
     </>
   );
 
-  // ─── Shipping Tab ───
+  // ─── Shipping Fee Tab ───
   const renderShippingTab = () => (
     <>
-      <div style={{ marginBottom: 16 }}>
-        <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          <i className="fas fa-bolt" style={{ marginRight: 6, color: 'var(--warning)' }}></i> Quick Presets
-        </h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {shippingPresets.map((p, i) => (
-            <button key={i} onClick={() => selectShippingPreset(p)}
-              style={{ padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1.5px solid var(--border-subtle)', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{p.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {p.price !== '0' ? `KSh ${p.price}` : 'Free'} · {p.days}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 16, cursor: 'pointer' }} onClick={() => { if (!showShippingForm) { setShowShippingForm(true); setEditingShippingId(null); setNewShipping({ name: '', price: '', estimatedDays: '', description: '' }); }}}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            <i className="fas fa-truck" style={{ marginRight: 6, color: 'var(--accent-primary)' }}></i> Shipping Methods
-            <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--accent-gradient-soft)', color: 'var(--accent-primary)', fontSize: 11, fontWeight: 700 }}>{shippingMethods.length}</span>
-          </h4>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowShippingForm(!showShippingForm); if (!showShippingForm) { setEditingShippingId(null); setNewShipping({ name: '', price: '', estimatedDays: '', description: '' }); }}}
-            style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', background: 'var(--accent-gradient)', border: 'none', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <i className="fas fa-plus" style={{ marginRight: 4 }}></i> Add Method
-          </button>
-        </div>
+      <div style={{ marginBottom: 8 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          Set shipping fees for each county in Kenya. Customers will see the fee based on their selected county during checkout.
+        </p>
       </div>
 
       {showShippingForm && (
         <div style={{ marginBottom: 16, padding: 16, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--accent-primary)' }}>
-            <i className="fas fa-truck-fast"></i> {editingShippingId ? 'Edit' : 'New'} Shipping Method
+            <i className="fas fa-map-marker-alt"></i> {editingShippingId ? 'Edit' : 'Add'} County Fee
           </h4>
           <div className="form-group" style={{ marginBottom: 10 }}>
-            <label className="form-label">Method Name *</label>
-            <input className="form-input" value={newShipping.name} onChange={(e) => setNewShipping(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Express Delivery" style={{ paddingLeft: 16, paddingRight: 16 }} />
-          </div>
-          <div className="form-row" style={{ marginBottom: 10 }}>
-            <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-              <label className="form-label">Price (KSh)</label>
-              <input className="form-input" type="number" value={newShipping.price} onChange={(e) => setNewShipping(p => ({ ...p, price: e.target.value }))} placeholder="0" style={{ paddingLeft: 16, paddingRight: 16 }} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-              <label className="form-label">Est. Days</label>
-              <input className="form-input" value={newShipping.estimatedDays} onChange={(e) => setNewShipping(p => ({ ...p, estimatedDays: e.target.value }))} placeholder="3-5" style={{ paddingLeft: 16, paddingRight: 16 }} />
-            </div>
+            <label className="form-label">County *</label>
+            <select
+              className="form-input form-select"
+              value={newShipping.name}
+              onChange={(e) => setNewShipping(p => ({ ...p, name: e.target.value }))}
+              style={{ paddingLeft: 16, paddingRight: 40 }}
+            >
+              <option value="">Select county</option>
+              {kenyaCounties.filter(c => !shippingMethods.some(s => s.name === c) || editingShippingId).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
           <div className="form-group" style={{ marginBottom: 10 }}>
-            <label className="form-label">Description</label>
-            <input className="form-input" value={newShipping.description} onChange={(e) => setNewShipping(p => ({ ...p, description: e.target.value }))} placeholder="Brief description" style={{ paddingLeft: 16, paddingRight: 16 }} />
+            <label className="form-label">Shipping Fee (KSh) *</label>
+            <input
+              className="form-input"
+              type="number"
+              value={newShipping.price}
+              onChange={(e) => setNewShipping(p => ({ ...p, price: e.target.value }))}
+              placeholder="0"
+              min="0"
+              style={{ paddingLeft: 16, paddingRight: 16 }}
+            />
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn btn-primary" style={{ flex: 1, height: 44, fontSize: 14 }} onClick={handleSaveShipping}>
@@ -850,19 +820,36 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {!showShippingForm && (
+        <button
+          onClick={() => { setShowShippingForm(true); setEditingShippingId(null); setNewShipping({ name: '', price: '', estimatedDays: '', description: '' }); }}
+          style={{ width: '100%', padding: 14, borderRadius: 'var(--radius-md)', border: '2px dashed var(--border-subtle)', background: 'transparent', color: 'var(--accent-primary)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        >
+          <i className="fas fa-plus"></i> Add County Fee
+        </button>
+      )}
+
       <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <i className="fas fa-map-marked-alt" style={{ marginRight: 6, color: 'var(--accent-primary)' }}></i> Counties
+            <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--accent-gradient-soft)', color: 'var(--accent-primary)', fontSize: 11, fontWeight: 700 }}>{shippingMethods.length} / 47</span>
+          </h4>
+        </div>
         {shippingMethods.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <i className="fas fa-truck" style={{ fontSize: 24, marginBottom: 8, display: 'block' }}></i>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>No shipping methods added yet</span>
+            <i className="fas fa-map-marked-alt" style={{ fontSize: 24, marginBottom: 8, display: 'block' }}></i>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>No county fees set yet. Add one above.</span>
           </div>
         ) : (
           shippingMethods.map((method) => (
             <div key={method.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', marginBottom: 8, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--info)', flexShrink: 0 }}><i className="fas fa-truck-fast"></i></div>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--info)', flexShrink: 0 }}><i className="fas fa-map-pin"></i></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{method.name}</div>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>KSh {method.price} · {method.estimatedDays} days</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                  Shipping fee: <strong style={{ color: 'var(--accent-primary)' }}>KSh {method.price}</strong>
+                </p>
               </div>
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                 <button onClick={() => handleEditShipping(method)} style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg-card)', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-edit"></i></button>
@@ -896,7 +883,7 @@ export default function SettingsPage() {
             <label className="form-label">County/Region *</label>
             <select className="form-input form-select" value={newStation.county} onChange={(e) => setNewStation(p => ({ ...p, county: e.target.value }))} style={{ paddingLeft: 16, paddingRight: 40 }}>
               <option value="">Select county</option>
-              {counties.map(c => <option key={c} value={c}>{c}</option>)}
+              {kenyaCounties.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="form-row" style={{ marginBottom: 10 }}>
@@ -1271,12 +1258,12 @@ export default function SettingsPage() {
                     </p>
                     <span
                       style={{ fontSize: 28, fontWeight: 800, letterSpacing: '0.15em', color: '#25D366', fontFamily: 'monospace', cursor: 'pointer', userSelect: 'all' }}
-                      onClick={() => { navigator.clipboard.writeText(pairingCode); showToast('Code copied!', 'success'); }}
+                      onClick={async () => { await copyToClipboard(pairingCode); await hapticsImpact('light'); showToast('Code copied!', 'success'); }}
                     >
                       {pairingCode}
                     </span>
                     <button
-                      onClick={() => { navigator.clipboard.writeText(pairingCode); showToast('Code copied!', 'success'); }}
+                      onClick={async () => { await copyToClipboard(pairingCode); await hapticsImpact('light'); showToast('Code copied!', 'success'); }}
                       style={{
                         display: 'block', width: '100%', marginTop: 12,
                         padding: '10px', borderRadius: 'var(--radius-md)',
@@ -1787,7 +1774,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
     <div className="app-container">
       {/* Status Bar */}
       <div className="bg-mesh"></div>
@@ -1846,7 +1833,7 @@ export default function SettingsPage() {
       />
 
       {/* More Sheet */}
-n      {/* Delete Account Dialog */}
+      {/* Delete Account Dialog */}
       <DeleteAccountDialog
         open={deleteAccountOpen}
         onClose={() => setDeleteAccountOpen(false)}

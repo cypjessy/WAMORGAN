@@ -3,7 +3,9 @@
 import '../client.css';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { productService, orderService, searchAnalyticsService } from '@/lib/db';
+import { useAuth } from '@/context/AuthContext';
+import { hapticsImpact } from '@/lib/capacitor';
+import { productService, orderService, searchAnalyticsService, cartService } from '@/lib/db';
 import ClientHeader from './components/ClientHeader';
 import SearchSection from './components/SearchSection';
 import QuickTags from './components/QuickTags';
@@ -12,7 +14,7 @@ import CategoryGrid from './components/CategoryGrid';
 import FlashBanner from './components/FlashBanner';
 import ProductScroll from './components/ProductScroll';
 import ProductGrid from './components/ProductGrid';
-import BrandStrip from './components/BrandStrip';
+import PromotionRow from './components/PromotionRow';
 import CartBar from './components/CartBar';
 import ClientBottomNav from '../components/ClientBottomNav';
 import ProductViewSheet from '../components/ProductViewSheet';
@@ -42,6 +44,7 @@ interface ShopProduct {
 
 export default function ClientShopPage() {
   const router = useRouter();
+  const { user } = useAuth();
 
   // Products from Firestore
   const [rawProducts, setRawProducts] = useState<any[]>([]);
@@ -87,8 +90,33 @@ export default function ClientShopPage() {
     }
   }, [shopProducts, sortKey, rawProducts]);
 
-  const newArrivals = sortedProducts.slice(0, 15);
-  const trendingProducts = sortedProducts.length > 4 ? sortedProducts.slice(4, 8) : sortedProducts.slice(0, 4);
+  // ─── Infinite scroll (30 per chunk) ─────────────────────────────────────
+  const CHUNK = 30;
+  const [visibleCount, setVisibleCount] = useState(CHUNK);
+  const observerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = observerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && visibleCount < sortedProducts.length) {
+          setVisibleCount(prev => Math.min(prev + CHUNK, sortedProducts.length));
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visibleCount, sortedProducts.length]);
+
+  const visibleProducts = sortedProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < sortedProducts.length;
+
+  // ─── Promotion products ──────────────────────────────────────────────────
+  const freeShippingProducts = rawProducts.filter((p: any) => p.freeShipping);
+  const upTo50OffProducts = rawProducts.filter((p: any) => p.upTo50Off);
+  const limitedTimeProducts = rawProducts.filter((p: any) => p.limitedTimeOffer);
 
   // ─── Filter state ────────────────────────────────────────────────────────
   const [filterPriceMin, setFilterPriceMin] = useState<number>(0);
@@ -135,21 +163,16 @@ export default function ClientShopPage() {
     }));
   }, [filteredRawProducts, filterVisibleCount]);
 
-  // ─── Cart (localStorage-persisted) ──────────────────────────────────────
+  // ─── Cart (Firestore-persisted) ──────────────────────────────────────
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('wamorgan_cart');
-      if (saved) setCartItems(JSON.parse(saved));
-    } catch {}
-    setCartLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (cartLoaded) localStorage.setItem('wamorgan_cart', JSON.stringify(cartItems));
-  }, [cartItems, cartLoaded]);
+    if (!user) { setCartLoaded(true); return; }
+    cartService.getCart(user.uid).then(items => {
+      setCartItems(items.map(i => ({ image: i.image, name: i.name, price: i.price, productId: i.productId })));
+    }).catch(() => {}).finally(() => setCartLoaded(true));
+  }, [user]);
 
   const [cartBarVisible, setCartBarVisible] = useState(true);
 
@@ -182,13 +205,14 @@ export default function ClientShopPage() {
   const [cartDialogOpen, setCartDialogOpen] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState('');
 
-  // Unread notification count
+  // Unread notification count (only user's own orders)
   const [notifCount, setNotifCount] = useState(0);
   useEffect(() => {
-    orderService.getOrders().then(orders => {
+    if (!user) return;
+    orderService.getOrders(undefined, { customerId: user.uid }).then(orders => {
       setNotifCount(orders.filter(o => o.status === 'pending').length);
     }).catch(() => {});
-  }, []);
+  }, [user]);
 
   // ─── Snackbar ────────────────────────────────────────────────────────────
   const [snackbar, setSnackbar] = useState({ message: '', type: 'success' as 'success' | 'error', visible: false });
@@ -221,7 +245,8 @@ export default function ClientShopPage() {
     }
   };
 
-  const handleProductClick = (product: any, index?: number) => {
+  const handleProductClick = async (product: any, index?: number) => {
+    await hapticsImpact('light');
     // Find the raw Firestore product by name (index is unreliable from shuffled lists)
     const rawProduct = rawProducts.find((r: any) => r.name === product.name)
       || (index !== undefined ? rawProducts[index] : undefined);
@@ -230,7 +255,8 @@ export default function ClientShopPage() {
     setQuickViewOpen(true);
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
+    await hapticsImpact('light');
     if (quickViewProduct) {
       const image = quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '';
       const price = quickViewProduct.price;
@@ -238,6 +264,7 @@ export default function ClientShopPage() {
       const name = quickViewProduct.name;
       setCartItems(prev => [...prev, { productId: quickViewProduct.id, image, name, price: priceNum }]);
       setLastAddedProduct(name);
+      if (user) cartService.addToCart(user.uid, { productId: quickViewProduct.id, image, name, price: priceNum });
     }
     setQuickViewOpen(false);
     setCartBarVisible(true);
@@ -281,7 +308,37 @@ export default function ClientShopPage() {
       <div className="main-scroll shop-scroll" id="mainScroll">
         <ClientHeader cartCount={cartCount} notifCount={notifCount} onNotifClick={() => setNotifOpen(true)} onCartClick={() => router.push('/client/cart')} />
         <SearchSection onSearch={(query) => { searchAnalyticsService.recordSearch(query); router.push(`/client/search?q=${encodeURIComponent(query)}`); }} />
-        <QuickTags onTagClick={(label) => router.push(`/client/search?q=${encodeURIComponent(label)}`)} />
+        <QuickTags onTagClick={(label, route) => router.push(route)} />
+
+        <HeroCarousel onCtaClick={(cta, slideIdx) => {
+          const routes = ['/client/up-to-50-off', '/client/limited-time-offer', '/client/free-shipping'];
+          router.push(routes[slideIdx] || routes[0]);
+        }} />
+
+        <PromotionRow
+          title="Up to 50% Off"
+          icon="fa-percent"
+          color="#f59e0b"
+          products={upTo50OffProducts}
+          onProductClick={(p) => handleProductClick(p)}
+          onViewAll={() => router.push('/client/up-to-50-off')}
+        />
+        <PromotionRow
+          title="Limited Time Offer"
+          icon="fa-bolt"
+          color="#ef4444"
+          products={limitedTimeProducts}
+          onProductClick={(p) => handleProductClick(p)}
+          onViewAll={() => router.push('/client/limited-time-offer')}
+        />
+        <PromotionRow
+          title="Free Shipping"
+          icon="fa-truck"
+          color="#10b981"
+          products={freeShippingProducts}
+          onProductClick={(p) => handleProductClick(p)}
+          onViewAll={() => router.push('/client/free-shipping')}
+        />
 
         {/* Flash timer → Flash deals → Categories → Products below */}
         <FlashBanner onClick={() => router.push('/client/flash-deals')} />
@@ -299,17 +356,26 @@ export default function ClientShopPage() {
         <CategoryGrid onCategoryClick={(label) => router.push(`/client/search?q=${encodeURIComponent(label)}`)} />
         
         <div className="section-header">
-          <span className="section-title"><i className="fas fa-tag"></i> Popular Categories</span>
-        </div>
-        <BrandStrip onBrandClick={(label) => { setActiveFilter(label); setFilterVisibleCount(10); }} />
-        
-        <HeroCarousel onCtaClick={(label) => router.push('/client/search?deals=summer-sale')} />
-        
-        <div className="section-header">
           <span className="section-title"><i className="fas fa-sparkles"></i> New Arrivals</span>
           <span className="section-action" onClick={() => router.push('/client/new-arrivals')}>View All</span>
         </div>
-        <ProductGrid products={newArrivals} onProductClick={(p, idx) => handleProductClick(p, idx)} onWishClick={handleWishClick} wishlist={wishlist} />
+        <ProductGrid products={visibleProducts} onProductClick={(p, idx) => handleProductClick(p, idx)} onWishClick={handleWishClick} wishlist={wishlist} />
+
+        {/* Infinite scroll sentinel + skeleton */}
+        {hasMore && (
+          <div ref={observerRef} style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 'calc(50% - 12px)', height: 260, borderRadius: 'var(--radius-lg)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }}
+              />
+            ))}
+          </div>
+        )}
         
         {/* Filtered Products */}
         {activeFilter && (
@@ -360,12 +426,6 @@ export default function ClientShopPage() {
           </div>
         )}
         
-        <div className="section-header">
-          <span className="section-title"><i className="fas fa-heart"></i> Trending Now</span>
-          <span className="section-action" onClick={() => router.push('/client/search?q=trending')}>View All</span>
-        </div>
-        <ProductGrid products={trendingProducts} onProductClick={(p, idx) => handleProductClick(p, idx)} onWishClick={handleWishClick} wishlist={wishlist} />
-        
         <div style={{ height: 20 }}></div>
       </div>
 
@@ -404,7 +464,7 @@ export default function ClientShopPage() {
       <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} onSelect={(label) => { setSortKey(label); setSortOpen(false); }} />
       
       {/* Notifications Sheet */}
-      <NotifSheet open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotifSheet open={notifOpen} onClose={() => setNotifOpen(false)} userId={user?.uid} />
 
       {/* Dialogs */}
       <CartDialog open={cartDialogOpen} onClose={() => setCartDialogOpen(false)} onCheckout={handleViewCart} productName={lastAddedProduct} />

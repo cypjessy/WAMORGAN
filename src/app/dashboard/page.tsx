@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { hapticsImpact } from '@/lib/capacitor';
 import {
   businessProfileService, orderService, productService, customerService
 } from '@/lib/db';
@@ -247,7 +248,7 @@ export default function DashboardPage() {
 
   // ─── Render ──────────────────────────────────────────────
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
       <div className="app-container dashboard-theme" style={{ minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* REFRESH INDICATOR */}
         <RefreshIndicator visible={pullVisible} spinning={pullSpinning} />
@@ -259,8 +260,8 @@ export default function DashboardPage() {
             notificationCount={unreadCount}
             userName={displayName}
             businessName={businessName}
-            onNotificationClick={() => setNotifModalOpen(true)}
-            onProfileClick={() => setProfileModalOpen(true)}
+            onNotificationClick={async () => { await hapticsImpact('light'); setNotifModalOpen(true); }}
+            onProfileClick={async () => { await hapticsImpact('light'); setProfileModalOpen(true); }}
           />
           <div className="search-bar" style={{ margin: '12px 20px 8px' }}>
             <i className="fas fa-search"></i>
@@ -293,7 +294,8 @@ export default function DashboardPage() {
             revenue={totalRevenue}
             customerCount={customerCount}
             productCount={productCounts.all || 0}
-            onCardClick={(type) => {
+            onCardClick={async (type) => {
+              await hapticsImpact('light');
               const routes: Record<string, string> = {
                 revenue: '/orders', orders: '/orders',
                 products: '/products', chats: '/customers',
@@ -304,7 +306,8 @@ export default function DashboardPage() {
 
           {/* QUICK ACTIONS */}
           <QuickActionsGrid
-            onAction={(action) => {
+            onAction={async (action) => {
+              await hapticsImpact('light');
               const routes: Record<string, string> = {
                 'add-product': '/products',
                 'new-order': '/orders',
@@ -370,11 +373,11 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div style={{ height: 100 }}></div>
         </div>
 
         {/* FAB MENU */}
-        <FabMenu open={fabModalOpen} onAction={(action) => {
+        <FabMenu open={fabModalOpen} onAction={async (action) => {
+          await hapticsImpact('light');
           setFabModalOpen(false);
           const routes: Record<string, string> = {
             'add-product': '/products',

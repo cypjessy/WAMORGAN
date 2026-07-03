@@ -30,6 +30,9 @@ interface Product {
   active?: boolean;
   trackInventory?: boolean;
   allowWhatsApp?: boolean;
+  freeShipping?: boolean;
+  upTo50Off?: boolean;
+  limitedTimeOffer?: boolean;
   orderLink?: string;
   _firestoreId?: string;
 }
@@ -215,6 +218,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
   const [editActive, setEditActive] = useState(true);
   const [editTrackInventory, setEditTrackInventory] = useState(true);
   const [editAllowWhatsApp, setEditAllowWhatsApp] = useState(true);
+  const [editFreeShipping, setEditFreeShipping] = useState(false);
+  const [editUpTo50Off, setEditUpTo50Off] = useState(false);
+  const [editLimitedTimeOffer, setEditLimitedTimeOffer] = useState(false);
 
   // Category / Subcategory
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
@@ -264,6 +270,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
     setEditActive(product.active !== false);
     setEditTrackInventory(product.trackInventory !== false);
     setEditAllowWhatsApp(product.allowWhatsApp !== false);
+    setEditFreeShipping(product.freeShipping ?? false);
+    setEditUpTo50Off(product.upTo50Off ?? false);
+    setEditLimitedTimeOffer(product.limitedTimeOffer ?? false);
     setEditVariants(product.variants || []);
     const prodUrl = 'https://wamorgan.vercel.app';
     const existing = (product.orderLink || '').replace(/^https?:\/\/localhost(:\d+)?/i, prodUrl).replace(/^https?:\/\/127\.0\.0\.1(:\d+)?/i, prodUrl);
@@ -380,6 +389,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
         active: editActive,
         trackInventory: editTrackInventory,
         allowWhatsApp: editAllowWhatsApp,
+        freeShipping: editFreeShipping,
+        upTo50Off: editUpTo50Off,
+        limitedTimeOffer: editLimitedTimeOffer,
         orderLink: editOrderLink || undefined,
         imageUrl: imageUrls[0] || product.imageUrl || '',
         images: imageUrls,
@@ -699,6 +711,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
           <ToggleSwitch enabled={editActive} onChange={setEditActive} label="Active" sublabel="Product is visible to customers" />
           <ToggleSwitch enabled={editTrackInventory} onChange={setEditTrackInventory} label="Track Inventory" sublabel="Auto-update stock on sales" />
           <ToggleSwitch enabled={editAllowWhatsApp} onChange={setEditAllowWhatsApp} label="Allow on WhatsApp" sublabel="AI can sell this via WhatsApp" />
+          <ToggleSwitch enabled={editFreeShipping} onChange={setEditFreeShipping} label="Free Shipping" sublabel="Promote on Free Shipping page" />
+          <ToggleSwitch enabled={editUpTo50Off} onChange={setEditUpTo50Off} label="Up to 50% Off" sublabel="Promote on Up to 50% Off page" />
+          <ToggleSwitch enabled={editLimitedTimeOffer} onChange={setEditLimitedTimeOffer} label="Limited Time Offer" sublabel="Promote on Limited Time Offer page" />
         </EditCard>
 
         {/* ════════════════════════════ ACTIONS ════════════════════════════ */}
@@ -762,6 +777,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
         {product.active !== false && <Badge label="Active" color="var(--accent-primary)" />}
         {product.active === false && <Badge label="Inactive" color="var(--text-muted)" />}
         {product.allowWhatsApp !== false && <Badge label="WhatsApp" color="#25d366" />}
+        {product.freeShipping && <Badge label="Free Shipping" color="#10b981" />}
+        {product.upTo50Off && <Badge label="Up to 50% Off" color="#f59e0b" />}
+        {product.limitedTimeOffer && <Badge label="Limited Time" color="#ef4444" />}
       </div>
 
       {/* ── Stats Grid ── */}
@@ -933,9 +951,9 @@ export default function AdminProductDetailSheet({ open, product, onClose, onEdit
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
-      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={handleClose} style={{ zIndex: 300 }} />
+      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={handleClose} style={{ zIndex: 9000 }} />
       <div className={`bottom-sheet ${open ? 'active' : ''}`} style={{
-        zIndex: 301, maxHeight: '95vh',
+        zIndex: 9001, maxHeight: '95vh',
         background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
       }}>
         <div className="sheet-handle"></div>

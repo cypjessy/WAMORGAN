@@ -1,20 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getNetworkStatus, addNetworkListener, isNative } from "@/lib/capacitor";
 
 export function useNetworkStatus() {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
+    // Initial status
+    getNetworkStatus().then(status => setIsOnline(status.connected));
+
+    // Listen for changes
+    const remove = addNetworkListener((connected) => {
+      setIsOnline(connected);
+    });
+
+    return remove;
   }, []);
 
   return isOnline;

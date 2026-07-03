@@ -1,15 +1,19 @@
 const DEFAULT_DEPLOYED_URL = 'http://localhost:3000';
 
+export function isCapacitor(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    !!(window as any).Capacitor?.isNativePlatform?.() ||
+    (window as any).CapacitorPlatforms?.currentPlatform === 'android' ||
+    (window as any).CapacitorPlatforms?.currentPlatform === 'ios' ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'http-extension:'
+  );
+}
+
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    const isCapacitor =
-      !!(window as any).Capacitor?.isNativePlatform?.() ||
-      (window as any).CapacitorPlatforms?.currentPlatform === 'android' ||
-      (window as any).CapacitorPlatforms?.currentPlatform === 'ios' ||
-      window.location.protocol === 'capacitor:' ||
-      window.location.protocol === 'http-extension:';
-
-    if (isCapacitor) {
+    if (isCapacitor()) {
       const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
       if (configuredUrl) return configuredUrl;
       return DEFAULT_DEPLOYED_URL;

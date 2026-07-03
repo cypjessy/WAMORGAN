@@ -1198,39 +1198,16 @@
   z-index: 1;
 }
 
-/* Dialog Overlay */
-.dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px);
-  z-index: 9998;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.dialog-overlay.active {
-  opacity: 1;
-  visibility: visible;
-}
-.dialog-overlay .dialog-box {
-  width: 100%;
+/* Dialog Box */
+.dialog-box {
+  width: 90%;
   max-width: 340px;
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   padding: 24px;
   text-align: center;
-  transform: scale(0.9);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow: var(--shadow-soft);
-}
-.dialog-overlay.active .dialog-box {
-  transform: scale(1);
 }
 .dialog-box .dialog-icon {
   width: 64px;
@@ -3384,6 +3361,10 @@
   backdrop-filter: blur(12px);
 }
 
+.page-header h2 {
+  flex: 1;
+}
+
 /* Count badge in cart header */
 .page-header .count {
   font-size: 14px;
@@ -4306,4 +4287,9 @@
   color: var(--text-secondary);
   line-height: 1.6;
   font-style: italic;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }

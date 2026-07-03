@@ -6,10 +6,17 @@ interface SearchHeaderProps {
   initialQuery: string;
   onBack: () => void;
   onSearch: (query: string) => void;
+  onChange?: (value: string) => void;
 }
 
-export default function SearchHeader({ initialQuery, onBack, onSearch }: SearchHeaderProps) {
+export default function SearchHeader({ initialQuery, onBack, onSearch, onChange }: SearchHeaderProps) {
   const [value, setValue] = useState(initialQuery);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setValue(v);
+    onChange?.(v);
+  };
 
   const handleSubmit = () => {
     if (!value.trim()) return;
@@ -20,6 +27,11 @@ export default function SearchHeader({ initialQuery, onBack, onSearch }: SearchH
     if (e.key === 'Enter') handleSubmit();
   };
 
+  const handleClear = () => {
+    setValue('');
+    onChange?.('');
+  };
+
   return (
     <div className="search-header">
       <button className="back-btn" onClick={onBack}><i className="fas fa-arrow-left"></i></button>
@@ -28,11 +40,11 @@ export default function SearchHeader({ initialQuery, onBack, onSearch }: SearchH
           type="text"
           value={value}
           placeholder="Search products..."
-          onChange={(e) => setValue(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
         />
         {value && (
-          <button className="clear-btn" onClick={() => setValue('')}><i className="fas fa-xmark"></i></button>
+          <button className="clear-btn" onClick={handleClear}><i className="fas fa-xmark"></i></button>
         )}
       </div>
       <button

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createInstance, getPairingCode, getConnectionState, fetchInstanceApiKey, getInstanceDetails, getEvolutionConfig, deleteInstance, setWebhook } from '@/lib/evolution';
+import { copyToClipboard, hapticsImpact } from '@/lib/capacitor';
 
 interface FormData {
   firstName: string;
@@ -209,7 +210,7 @@ export default function AdminAccountPage() {
   };
 
   // ─── WhatsApp Connected Handler (matching WAMORGAN's onConnected) ───
-  const handleWhatsAppConnected = async () => {
+const handleWhatsAppConnected = async () => {
     if (!instanceName) return;
     const deploymentUrl = process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_BASE_URL ||
@@ -677,7 +678,7 @@ export default function AdminAccountPage() {
                       {pairingCode}
                     </span>
                     <button
-                      onClick={() => { navigator.clipboard.writeText(pairingCode); }}
+                      onClick={async () => { await copyToClipboard(pairingCode); await hapticsImpact('light'); }}
                       style={{
                         display: 'block', width: '100%', marginTop: 12,
                         padding: '10px', borderRadius: 'var(--radius-md)',

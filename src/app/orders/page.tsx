@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
+import { hapticsImpact, downloadFile } from '@/lib/capacitor';
 import { orderService, businessProfileService, cancellationRequestService } from '@/lib/db';
 import { sendOrderConfirmation, sendOrderStatusUpdate, sendOrderCancellation } from '@/lib/webhook-handlers/order-notification';
 import { sendMessage } from '@/lib/evolution';
@@ -308,12 +309,14 @@ export default function OrdersPage() {
   const statusCounts = getStatusCounts(orders);
 
   // Handlers
-  const handleOrderClick = useCallback((order: LocalOrder) => {
+  const handleOrderClick = useCallback(async (order: LocalOrder) => {
+    await hapticsImpact('light');
     setSelectedOrder(order);
     setDetailSheetOpen(true);
   }, []);
 
   const handleUpdateStatus = useCallback(async (status: string) => {
+    await hapticsImpact('medium');
     if (!selectedOrder?._firestoreId) return;
     try {
       const oldStatus = selectedOrder.status;
@@ -421,9 +424,11 @@ export default function OrdersPage() {
     }
   }, [showToast, loadOrders]);
 
-  const handleDownloadInvoice = useCallback(() => {
+  const handleDownloadInvoice = useCallback(async () => {
+    await hapticsImpact('light');
+    await downloadFile(`invoice-${selectedOrder?.id || 'order'}.pdf`, 'Invoice data', 'application/pdf');
     showToast('Invoice downloaded', 'success');
-  }, [showToast]);
+  }, [showToast, selectedOrder]);
 
   const handleApproveCancellation = useCallback(async (requestId: string, orderNumber: string) => {
     try {
@@ -491,7 +496,7 @@ export default function OrdersPage() {
   }, []);
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
     <div className="app-container">
       {/* Status Bar */}
       <div className="bg-mesh"></div>

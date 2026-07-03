@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { hapticsImpact } from '@/lib/capacitor';
 import { productService } from '@/lib/db';
 import type { Product as DbProduct } from '@/lib/db';
 import BottomNav from '../components/BottomNav';
@@ -246,7 +247,8 @@ export default function ProductsPage() {
   // Handlers
   const handleClearSearch = () => setSearchQuery('');
 
-  const handleProductClick = useCallback((id: number) => {
+  const handleProductClick = useCallback(async (id: number) => {
+    await hapticsImpact('light');
     const p = allProducts.find((x) => x.id === id);
     if (p) {
       setSelectedProduct(p);
@@ -359,7 +361,7 @@ export default function ProductsPage() {
   }, []);
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
     <div className="app-container">
       {/* Background */}
       <div className="bg-mesh"></div>
@@ -395,7 +397,7 @@ export default function ProductsPage() {
             products={sortedProducts}
             currentView={currentView}
             onProductClick={handleProductClick}
-            onEditClick={handleEditClick}
+            onEditClick={async (id) => { await hapticsImpact('light'); handleEditClick(id); }}
             onDeleteClick={handleDeleteClick}
             onAddProduct={() => { setEditingProduct(null); setFormMode('add'); setFormSheetOpen(true); }}
           />

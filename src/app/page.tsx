@@ -4,19 +4,29 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { userProfileService, createUserDocument } from "@/lib/db";
-import { sendPasswordResetEmail } from "firebase/auth";
+import { GoogleAuthProvider, signInWithCredential, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import LandingOnboarding from "@/app/components/LandingOnboarding";
 import LoginForm from "@/app/components/LoginForm";
 import RegisterForm from "@/app/components/RegisterForm";
 import SocialLogin from "@/app/components/SocialLogin";
 import AdminRegisterSheet from "@/app/components/AdminRegisterSheet";
 import ForgotSheetModal from "@/app/components/ForgotSheetModal";
 import TermsSheetModal from "@/app/components/TermsSheetModal";
+import { authenticateWithBiometrics, initBiometricAuth, isBiometricAvailable, signInWithGoogleNative, hapticsImpact, isNative, setPreference, getPreference } from "@/lib/capacitor";
 import "./login.css";
 
 export default function LoginPage() {
   const router = useRouter();
   const { signIn, signUp, user } = useAuth();
+
+  // ─── Onboarding state — always show before login ────────────────────
+  const [onboardingDone, setOnboardingDone] = useState(false);
+  const [onboardingChecked] = useState(true);
+
+  const handleOnboardingComplete = useCallback(() => {
+    setOnboardingDone(true);
+  }, []);
 
   // ─── Page navigation ───────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState<"login" | "register">("login");
@@ -102,6 +112,7 @@ export default function LoginPage() {
   // ─── Login handler ──────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    await hapticsImpact('light');
     let valid = true;
 
     setEmailError(false);
@@ -125,6 +136,7 @@ export default function LoginPage() {
     try {
       const cred = await signIn(loginEmail, loginPassword);
       const profile = await userProfileService.getProfile(cred.user.uid);
+      setPreference('wamorgan_last_email', loginEmail);
       showToast("Welcome back! Login successful", "success");
       setTimeout(() => {
         if (profile?.role === "admin") router.push("/dashboard");
@@ -189,14 +201,87 @@ export default function LoginPage() {
     }
   };
 
+  // ─── On mount — init biometric and try to load stored email ────────
+  const [biometricReady, setBiometricReady] = useState(false);
+
+  useEffect(() => {
+    if (isNative()) {
+      initBiometricAuth().then(() => setBiometricReady(true));
+    } else {
+      setBiometricReady(true);
+    }
+    // Load last used email
+    getPreference('wamorgan_last_email').then(email => {
+      if (email) setLoginEmail(email);
+    });
+  }, []);
+
   // ─── Social login ───────────────────────────────────────────────────
-  const handleSocialLogin = (provider: string) => {
-    showToast(`Connecting to ${provider}...`, "success");
-  };
+  const handleSocialLogin = async (provider: string) => {
+    await hapticsImpact('light');
+    if (provider === 'Google' && isNative()) {
+      const result = await signInWithGoogleNative();
+      if (result && result.idToken) {
+        try {
+          if (auth) {
+            const credential = GoogleAuthProvider.credential(result.idToken);
+            const cred = await signInWithCredential(auth, credential);
+            await setPreference('wamorgan_last_email', result.email);
+            const profile = await userProfileService.getProfile(cred.user.uid);
+            showToast('Signed in with Google!', 'success');
+            setTimeout(() => {
+              if (profile?.role === 'admin') router.push('/dashboard');
+              else router.push('/client/shop');
+            }, 500);
+          }
+        } catch (err: any) {
+          showToast(err.message || 'Google sign-in failed', 'error');
+        }
+      } else {
+        showToast('Google sign-in cancelled', 'error');
+      }
+    } else {
+      showToast(`Connecting to ${provider}...`, 'success');
+    }
+  }; 
+
+  // ─── Store email after successful login ────────────────────────────
+  // The login handler already exists — augment it to store the email
 
   // ─── Biometric ──────────────────────────────────────────────────────
-  const handleBiometric = () => {
-    showToast("Biometric authentication", "success");
+  const handleBiometric = async () => {
+    if (isNative()) {
+      await initBiometricAuth();
+      if (!isBiometricAvailable()) {
+        showToast("No biometric sensor available on this device", "error");
+        return;
+      }
+      const authenticated = await authenticateWithBiometrics('Log in to WAMORGAN');
+      if (authenticated) {
+        await hapticsImpact('light');
+        // Retrieve stored email for convenience
+        const storedEmail = await getPreference('wamorgan_last_email');
+        if (storedEmail) {
+          setLoginEmail(storedEmail);
+          // Focus password field — biometric verified, just need password
+          showToast('Biometric verified! Enter your password to continue', 'success');
+        } else {
+          // No stored email — check if Firebase session exists
+          if (user) {
+            const profile = await userProfileService.getProfile(user.uid);
+            if (profile?.role === 'admin') router.push('/dashboard');
+            else router.push('/client/shop');
+          } else {
+            showToast('Biometric verified! Please log in with your credentials', 'success');
+          }
+        }
+      } else {
+        showToast('Biometric authentication cancelled', 'error');
+      }
+    } else {
+      // Web fallback
+      showToast('Biometric authentication is only available on mobile app', 'success');
+    }
   };
 
   // ─── Forgot password ────────────────────────────────────────────────
@@ -217,8 +302,26 @@ export default function LoginPage() {
   };
 
   // ─── Render ─────────────────────────────────────────────────────────
+  // Show nothing while checking onboarding status
+  if (!onboardingChecked) {
+    return (
+      <div className="app-container" style={{ background: 'var(--bg-primary)' }}>
+        <div className="lo-splash-loader" style={{ position: 'fixed', top: '50%', left: '50%', margin: '-20px 0 0 -20px' }} />
+      </div>
+    );
+  }
+
+  // Show onboarding if not completed
+  if (!onboardingDone) {
+    return (
+      <div className="app-container" style={{ background: 'var(--bg-primary)' }}>
+        <LandingOnboarding onComplete={handleOnboardingComplete} />
+      </div>
+    );
+  }
+
   return (
-    <div className="app-container">
+    <div className="app-container login-root">
       {/* Background Effects */}
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
@@ -248,6 +351,7 @@ export default function LoginPage() {
             onSocialLogin={handleSocialLogin}
             onGoToRegister={goToRegister}
             onBiometricClick={handleBiometric}
+            nativeBiometricAvailable={biometricReady && isBiometricAvailable()}
           />
 
           <div className="bottom-text" style={{ marginTop: 8 }}>

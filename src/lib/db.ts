@@ -123,6 +123,9 @@ export interface Product {
   active?: boolean;
   trackInventory?: boolean;
   allowWhatsApp?: boolean;
+  freeShipping?: boolean;
+  upTo50Off?: boolean;
+  limitedTimeOffer?: boolean;
   orderLink?: string;
   createdAt: any;
   updatedAt: any;
@@ -677,6 +680,29 @@ export const supportTicketService = {
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SupportTicket[];
   },
 
+  /** Get tickets for a specific user only (data isolation) */
+  async getUserTickets(userId: string): Promise<SupportTicket[]> {
+    const q = query(
+      collection(db, "supportTickets"),
+      where("userId", "==", userId),
+      orderBy("lastMessageTime", "desc")
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SupportTicket[];
+  },
+
+  /** Listen to tickets for a specific user only (data isolation) */
+  onUserTickets(userId: string, callback: (tickets: SupportTicket[]) => void): Unsubscribe {
+    const q = query(
+      collection(db, "supportTickets"),
+      where("userId", "==", userId),
+      orderBy("lastMessageTime", "desc")
+    );
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SupportTicket[]);
+    });
+  },
+
   onTickets(callback: (tickets: SupportTicket[]) => void): Unsubscribe {
     const q = query(collection(db, "supportTickets"), orderBy("lastMessageTime", "desc"));
     return onSnapshot(q, (snap) => {
@@ -865,6 +891,45 @@ export const wishlistService = {
     const q = query(collection(db, "wishlists", userId, "items"));
     const snap = await getDocs(q);
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+  },
+};
+
+// ─── Service: Cart (single doc per user) ──────────────────────────
+
+export interface CartDbItem {
+  productId: string;
+  name: string;
+  price: number;
+  image: string;
+  createdAt: any;
+}
+
+export const cartService = {
+  async getCart(userId: string): Promise<CartDbItem[]> {
+    const snap = await getDoc(doc(db, "carts", userId));
+    if (!snap.exists()) return [];
+    const data = snap.data();
+    return (data.items || []).sort((a: CartDbItem, b: CartDbItem) => (b.createdAt || 0) - (a.createdAt || 0));
+  },
+
+  async addToCart(userId: string, item: { productId: string; name: string; price: number; image: string }): Promise<void> {
+    const ref = doc(db, "carts", userId);
+    const snap = await getDoc(ref);
+    const items: CartDbItem[] = snap.exists() ? (snap.data().items || []) : [];
+    items.push({ ...item, createdAt: Date.now() });
+    await setDoc(ref, { items, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async removeFromCart(userId: string, productId: string): Promise<void> {
+    const ref = doc(db, "carts", userId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const items: CartDbItem[] = (snap.data().items || []).filter((i: CartDbItem) => i.productId !== productId);
+    await setDoc(ref, { items, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async clearCart(userId: string): Promise<void> {
+    await setDoc(doc(db, "carts", userId), { items: [], updatedAt: serverTimestamp() }, { merge: true });
   },
 };
 

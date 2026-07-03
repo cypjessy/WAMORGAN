@@ -7,7 +7,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
-  padding: 0 4px;
+  padding: 0 20px;
   margin-bottom: 32px;
 }
 
@@ -155,7 +155,8 @@
 .admin-product-list.premium-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+  padding: 0 20px;
   margin-bottom: 32px;
 }
 

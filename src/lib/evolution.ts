@@ -1,8 +1,9 @@
 // ─── Evolution API Client Library ───────────────────────────────────────────
-// Routes all calls through the server-side proxy at /api/evolution/[...path]
-// to avoid exposing API credentials to the client.
+// ├── Web app: routes through Vercel proxy at /api/evolution/[...path]
+// └── Android (Capacitor): connects DIRECTLY to the Evolution API server
+//     Uses a dual-mode approach so the APK doesn't depend on the Vercel proxy.
 
-import { buildApiUrl } from '@/lib/api-config';
+import { buildApiUrl, isCapacitor } from '@/lib/api-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,26 @@ let cachedConfig: EvolutionConfig | null = null;
 export async function getEvolutionConfig(): Promise<EvolutionConfig> {
   if (cachedConfig) return cachedConfig;
 
+  // On Capacitor, read NEXT_PUBLIC_* env vars directly first (baked into the static export)
+  const envUrl = process.env.NEXT_PUBLIC_EVOLUTION_URL || '';
+  const envKey = process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '';
+
+  if (isCapacitor() && envUrl && envKey) {
+    cachedConfig = { apiUrl: envUrl, apiKey: envKey };
+    return cachedConfig;
+  }
+
+  // Try fetching via the config endpoint (works on web + Capacitor with NEXT_PUBLIC_API_URL)
   try {
     const res = await fetch(buildApiUrl('/api/evolution-config'));
     cachedConfig = await res.json() as EvolutionConfig;
     return cachedConfig;
   } catch {
+    // Fallback: use env vars if config endpoint failed
+    if (envUrl && envKey) {
+      cachedConfig = { apiUrl: envUrl, apiKey: envKey };
+      return cachedConfig;
+    }
     return { apiUrl: '', apiKey: '' };
   }
 }
@@ -41,6 +57,8 @@ export function clearEvolutionConfigCache() {
 }
 
 // ─── API Call Helper ─────────────────────────────────────────────────────────
+// Web: routes through Vercel proxy (x-api-key header, proxy adds apikey)
+// Android/Capacitor: connects DIRECTLY to the Evolution API server
 
 async function callEvolutionApi(
   method: string,
@@ -50,11 +68,37 @@ async function callEvolutionApi(
   const config = await getEvolutionConfig();
   const apiKey = config?.apiKey || '';
 
+  // ─── Capacitor mode: direct connection to Evolution API server ──────────
+  if (isCapacitor() && config.apiUrl) {
+    const baseUrl = config.apiUrl.replace(/\/+$/, '');
+    const cleanPath = path.replace(/^\//, '');
+    const url = `${baseUrl}/${cleanPath}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'apikey': apiKey,  // Evolution API expects 'apikey' header
+    };
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'Unknown error');
+      throw new Error(`Evolution API error (${res.status}): ${errorText}`);
+    }
+
+    return res.json();
+  }
+
+  // ─── Web mode: route through Vercel proxy ───────────────────────────────
   const url = buildApiUrl(`/api/evolution/${path}`);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-api-key': apiKey,
+    'x-api-key': apiKey,  // Vercel proxy expects x-api-key, converts to apikey
   };
 
   const res = await fetch(url, {

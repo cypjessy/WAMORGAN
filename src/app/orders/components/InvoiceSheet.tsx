@@ -59,23 +59,8 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
     }).catch(() => {});
   }, [open]);
 
-  if (!order) return null;
-
-  const subtotal = order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
-  const paymentLabel = order.paymentInfo?.method || 'Credit Card';
-  const payText = order.status === 'cancelled'
-    ? 'Order Cancelled'
-    : order.status === 'refunded'
-    ? 'Order Refunded'
-    : order.payment === 'paid'
-    ? 'Payment Received'
-    : order.payment === 'refunded'
-    ? 'Payment Refunded'
-    : 'Payment Pending';
-
   const handleSendToWhatsApp = useCallback(async () => {
-    if (!order.phone) {
+    if (!order?.phone) {
       setSendError('Customer has no phone number');
       setSendStep('error');
       return;
@@ -90,10 +75,8 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
     setSendError('');
 
     try {
-      // Wait a tick for the DOM to be ready
       await new Promise(r => setTimeout(r, 100));
 
-      // Capture the invoice as a PNG image
       const node = invoiceRef.current;
       if (!node) {
         setSendError('Could not capture invoice. Try again.');
@@ -108,12 +91,10 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
         backgroundColor: '#ffffff',
       });
 
-      // Convert data URL to Blob
       const res = await fetch(dataUrl);
       const blob = await res.blob();
       const file = new File([blob], `invoice-${order.id}.png`, { type: 'image/png' });
 
-      // Upload via the API
       if (!user) {
         setSendError('You must be logged in');
         setSendStep('error');
@@ -140,7 +121,6 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
 
       const mediaUrl = uploadData.url;
 
-      // Send via Evolution API
       setSendStep('sending');
       const caption = `🧾 *Invoice #${order.id}*\n${businessName || 'WAMORGAN'}\n\nHi *${order.customer}*,\n\nYour invoice is attached below.\nTotal: KSh ${order.total.toFixed(2)}\nStatus: ${payText}\n\nThank you for your business! 🙏`;
 
@@ -153,7 +133,22 @@ export default function InvoiceSheet({ open, order, onClose, onDownload, busines
       setSendError(err.message || 'Failed to send invoice');
       setSendStep('error');
     }
-  }, [order, instanceName, sendType, businessName, payText, user]);
+  }, [order, instanceName, sendType, businessName, user]);
+
+  if (!order) return null;
+
+  const subtotal = order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
+  const paymentLabel = order.paymentInfo?.method || 'Credit Card';
+  const payText = order.status === 'cancelled'
+    ? 'Order Cancelled'
+    : order.status === 'refunded'
+    ? 'Order Refunded'
+    : order.payment === 'paid'
+    ? 'Payment Received'
+    : order.payment === 'refunded'
+    ? 'Payment Refunded'
+    : 'Payment Pending';
 
   return (
     <>

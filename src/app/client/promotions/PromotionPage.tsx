@@ -9,19 +9,24 @@ import ProductViewSheet from '../components/ProductViewSheet';
 
 const PAGE_SIZE = 20;
 
-export default function NewArrivalsPage() {
+interface PromotionPageProps {
+  label: string;
+  field: 'freeShipping' | 'upTo50Off' | 'limitedTimeOffer';
+  icon: string;
+  desc: string;
+}
+
+export default function PromotionPage({ label, field, icon, desc }: PromotionPageProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Quick view state
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
   const [quickViewQty, setQuickViewQty] = useState(1);
 
-  // Cart (localStorage)
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
 
@@ -32,7 +37,6 @@ export default function NewArrivalsPage() {
     }).catch(() => {}).finally(() => setCartLoaded(true));
   }, [user]);
 
-  // Wishlist (localStorage)
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
   const [wishLoaded, setWishLoaded] = useState(false);
 
@@ -50,23 +54,13 @@ export default function NewArrivalsPage() {
 
   useEffect(() => {
     productService.getProducts().then(all => {
-      setProducts(all);
+      setProducts(all.filter((p: any) => p[field]));
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [field]);
 
-  const newArrivals = useMemo(() => {
-    return products
-      .filter((p: any) => p.status !== 'draft')
-      .sort((a: any, b: any) => {
-        const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-        const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-        return tb.getTime() - ta.getTime();
-      });
-  }, [products]);
-
-  const visibleProducts = newArrivals.slice(0, visibleCount);
-  const hasMore = visibleCount < newArrivals.length && visibleCount < 100;
+  const visibleProducts = products.slice(0, visibleCount);
+  const hasMore = visibleCount < products.length && visibleCount < 100;
 
   const handleProductClick = (item: any) => {
     const rawProduct = products.find((p: any) => p.id === item.id || p.name === item.name);
@@ -88,11 +82,8 @@ export default function NewArrivalsPage() {
     const p = products.find((r: any) => r.id === productId);
     if (p) {
       const newWishlist = new Set(wishlist);
-      if (newWishlist.has(p.name)) {
-        newWishlist.delete(p.name);
-      } else {
-        newWishlist.add(p.name);
-      }
+      if (newWishlist.has(p.name)) newWishlist.delete(p.name);
+      else newWishlist.add(p.name);
       setWishlist(newWishlist);
     }
   }, [products, wishlist]);
@@ -103,14 +94,13 @@ export default function NewArrivalsPage() {
       <div className="noise-overlay"></div>
 
       <div className="main-scroll shop-scroll">
-        {/* Header */}
         <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text-primary)', cursor: 'pointer', padding: 4 }}>
             <i className="fas fa-arrow-left"></i>
           </button>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>New Arrivals</h2>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>Latest products added to the store</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{label}</h2>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>{desc}</p>
           </div>
         </div>
 
@@ -161,15 +151,21 @@ export default function NewArrivalsPage() {
                   className="btn btn-secondary"
                   style={{ width: '100%', height: 48 }}
                 >
-                  <i className="fas fa-chevron-down"></i> Load More ({Math.min(newArrivals.length, 100) - visibleCount} remaining)
+                  <i className="fas fa-chevron-down"></i> Load More ({Math.min(products.length, 100) - visibleCount} remaining)
                 </button>
+              </div>
+            )}
+
+            {!loading && products.length === 0 && (
+              <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+                <i className="fas fa-tag" style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}></i>
+                <p style={{ fontSize: 14 }}>No products with this promotion yet.</p>
               </div>
             )}
           </>
         )}
       </div>
 
-      {/* Product View Sheet */}
       <ProductViewSheet
         open={quickViewOpen}
         onClose={() => setQuickViewOpen(false)}

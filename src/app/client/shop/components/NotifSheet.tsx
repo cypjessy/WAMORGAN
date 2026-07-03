@@ -6,6 +6,7 @@ import { orderService } from '@/lib/db';
 interface NotifSheetProps {
   open: boolean;
   onClose: () => void;
+  userId?: string;
 }
 
 const statusIcon: Record<string, string> = {
@@ -42,17 +43,18 @@ function timeAgo(date: any): string {
   return `${Math.floor(days / 7)}w`;
 }
 
-export default function NotifSheet({ open, onClose }: NotifSheetProps) {
+export default function NotifSheet({ open, onClose, userId }: NotifSheetProps) {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    orderService.getOrders().then(orders => {
+    if (!userId) { setLoading(false); setRecentOrders([]); return; }
+    orderService.getOrders(undefined, { customerId: userId }).then(orders => {
       setRecentOrders(orders.slice(0, 10));
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [open]);
+  }, [open, userId]);
 
   const unread = recentOrders.filter(o => o.status === 'pending').length;
 

@@ -60,11 +60,10 @@ export default function ClientMessagesPage() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    const q = supportTicketService.onTickets((all) => {
-      setTickets(all.filter(t => t.userId === user.uid));
+    return supportTicketService.onUserTickets(user.uid, (userTickets) => {
+      setTickets(userTickets);
       setLoading(false);
     });
-    return q;
   }, [user]);
 
   const [toastVisible, setToastVisible] = useState(false);

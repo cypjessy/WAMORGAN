@@ -411,9 +411,9 @@ export default function CreateOrderDialog({ open, onClose, onCreateOrder, showTo
 
   return (
     <>
-      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={onClose} style={{ zIndex: 300 }} />
+      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={onClose} style={{ zIndex: 9000 }} />
       <div className={`bottom-sheet ${open ? 'active' : ''}`} style={{
-        zIndex: 301, maxHeight: '95vh',
+        zIndex: 9001, maxHeight: '95vh',
         background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
       }}>
         <div className="sheet-handle" />

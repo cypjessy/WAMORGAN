@@ -12,7 +12,7 @@ interface HeroSlide {
 }
 
 const defaultSlides: HeroSlide[] = [
-  { tag: '<i class="fas fa-percent"></i> Summer Sale', title: 'Up to 50% Off', desc: 'On all electronics & accessories', cta: 'Shop Now', cls: 'slide-1' },
+  { tag: '<i class="fas fa-percent"></i> Bei ya mkulima', title: 'Up to 50% Off', desc: 'On all electronics & accessories', cta: 'Shop Now', cls: 'slide-1' },
   { tag: '<i class="fas fa-bolt"></i> Flash Deal', title: 'Limited Time Offer', desc: 'Grab the best deals before they expire', cta: 'View Deals', cls: 'slide-2' },
   { tag: '<i class="fas fa-truck"></i> Free Delivery', title: 'Free Shipping', desc: 'On orders over KSh 50 this week', cta: 'Shop Now', cls: 'slide-3' },
 ];
@@ -22,7 +22,7 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-export default function HeroCarousel({ onCtaClick }: { onCtaClick: (label: string) => void }) {
+export default function HeroCarousel({ onCtaClick }: { onCtaClick: (cta: string, slideIdx: number) => void }) {
   const [current, setCurrent] = useState(0);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [slides, setSlides] = useState<HeroSlide[]>(defaultSlides);
@@ -90,7 +90,7 @@ export default function HeroCarousel({ onCtaClick }: { onCtaClick: (label: strin
             <span className="tag" dangerouslySetInnerHTML={{ __html: slide.tag }} />
             <h3>{slide.title}</h3>
             <p>{slide.desc}</p>
-            <button className="hero-cta" onClick={() => onCtaClick(slide.cta)}>
+            <button className="hero-cta" onClick={() => onCtaClick(slide.cta, i)}>
               {slide.cta} <i className="fas fa-arrow-right"></i>
             </button>
           </div>

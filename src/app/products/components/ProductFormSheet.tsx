@@ -231,9 +231,9 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
-      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={onClose} style={{ zIndex: 300 }} />
+      <div className={`modal-overlay ${open ? 'active' : ''}`} onClick={onClose} style={{ zIndex: 9000 }} />
       <div className={`bottom-sheet ${open ? 'active' : ''}`} style={{
-        zIndex: 301, maxHeight: '95vh',
+        zIndex: 9001, maxHeight: '95vh',
         background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
       }}>
         <div className="sheet-handle" />
@@ -583,10 +583,10 @@ export default function ProductFormSheet({ open, mode, editProduct, onClose, onS
             {/* ════════════════════════════ ACTIONS ════════════════════════════ */}
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={saving}>
+              <button className="btn btn-secondary" style={{ flex: 1, height: 48 }} onClick={onClose} disabled={saving}>
                 Cancel
               </button>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving}>
+              <button className="btn btn-primary" style={{ flex: 1, height: 48 }} onClick={handleSave} disabled={saving}>
                 {saving ? <span className="spinner" /> : <><i className="fas fa-check"></i> {mode === 'add' ? 'Save Product' : 'Update'}</>}
               </button>
             </div>

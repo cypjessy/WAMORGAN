@@ -2,7 +2,9 @@
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { productService, searchAnalyticsService } from '@/lib/db';
+import { hapticsImpact } from '@/lib/capacitor';
+import { productService, searchAnalyticsService, cartService } from '@/lib/db';
+import { useAuth } from '@/context/AuthContext';
 import SearchHeader from './components/SearchHeader';
 import FilterSortRow from './components/FilterSortRow';
 import ActiveFilters from './components/ActiveFilters';
@@ -45,13 +47,32 @@ export default function SearchResultsPage() {
 
 function SearchResultsContent() {
   const router = useRouter();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
+
+  const initialPriceMax = searchParams?.get('priceMax') ? Number(searchParams.get('priceMax')) : 99999;
+  const initialSort = searchParams?.get('sort') || 'popular';
 
   const [query, setQuery] = useState(searchParams?.get('q') || '');
   const [filterCount, setFilterCount] = useState(0);
   const [activeFilterLabels, setActiveFilterLabels] = useState<string[]>([]);
-  const [sort, setSort] = useState('popular');
+  const [sort, setSort] = useState(initialSort);
+  const [filterPriceMin, setFilterPriceMin] = useState(0);
+  const [filterPriceMax, setFilterPriceMax] = useState(initialPriceMax);
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterSubcategories, setFilterSubcategories] = useState<string[]>([]);
+  const [filterRating, setFilterRating] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Set initial filter labels from URL params
+  useEffect(() => {
+    const labels: string[] = [];
+    if (initialPriceMax < 99999) {
+      labels.push(`Under KSh ${initialPriceMax}`);
+    }
+    setActiveFilterLabels(labels);
+    setFilterCount(labels.length);
+  }, []);
 
   // All loaded Firestore products (raw)
   const [rawProducts, setRawProducts] = useState<any[]>([]);
@@ -65,13 +86,6 @@ function SearchResultsContent() {
       finally { setLoading(false); }
     })();
   }, []);
-
-  // ─── Filtering & Sorting ─────────────────────────────────────────────
-  const [filterPriceMin, setFilterPriceMin] = useState(0);
-  const [filterPriceMax, setFilterPriceMax] = useState(99999);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterSubcategories, setFilterSubcategories] = useState<string[]>([]);
-  const [filterRating, setFilterRating] = useState(0);
 
   const matchedProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -149,6 +163,17 @@ function SearchResultsContent() {
   useEffect(() => {
     if (wishLoaded) localStorage.setItem('wamorgan_wishlist', JSON.stringify([...wishlist]));
   }, [wishlist, wishLoaded]);
+
+  // ─── Cart (Firestore) ──────────────────────────────────────────────────
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartLoaded, setCartLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setCartLoaded(true); return; }
+    cartService.getCart(user.uid).then(items => {
+      setCartItems(items.map((i: any) => ({ productId: i.productId, image: i.image, name: i.name, price: i.price })));
+    }).catch(() => {}).finally(() => setCartLoaded(true));
+  }, [user]);
 
   // ─── Quick view ────────────────────────────────────────────────────────
   const [quickViewOpen, setQuickViewOpen] = useState(false);
@@ -249,7 +274,8 @@ function SearchResultsContent() {
     if (p) handleWishClick(p.name);
   };
 
-  const handleCardClick = (product: ResultProduct) => {
+  const handleCardClick = async (product: ResultProduct) => {
+    await hapticsImpact('light');
     const rawProduct = rawProducts.find((r: any) => r.name === product.name);
     setQuickViewProduct(rawProduct || product);
     setQuickViewQty(1);
@@ -260,22 +286,18 @@ function SearchResultsContent() {
     const name = product?.name || quickViewProduct?.name || 'Product';
     setLastAddedProduct(name);
     if (product) {
-      // Also add to localStorage cart
       const p = rawProducts.find((r: any) => r.name === product.name);
-      if (p) {
-        const saved = localStorage.getItem('wamorgan_cart');
-        const items = saved ? JSON.parse(saved) : [];
-        items.push({ productId: p.id, image: p.images?.[0] || p.imageUrl || '', name: p.name, price: p.price });
-        localStorage.setItem('wamorgan_cart', JSON.stringify(items));
+      if (p && user) {
+        const item = { productId: p.id, image: p.images?.[0] || p.imageUrl || '', name: p.name, price: p.price };
+        setCartItems(prev => [...prev, item]);
+        cartService.addToCart(user.uid, item);
       }
       setCartDialogOpen(true);
     } else {
-      // Add from quick view
-      if (quickViewProduct) {
-        const saved = localStorage.getItem('wamorgan_cart');
-        const items = saved ? JSON.parse(saved) : [];
-        items.push({ productId: quickViewProduct.id, image: quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '', name: quickViewProduct.name, price: quickViewProduct.price });
-        localStorage.setItem('wamorgan_cart', JSON.stringify(items));
+      if (quickViewProduct && user) {
+        const item = { productId: quickViewProduct.id, image: quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '', name: quickViewProduct.name, price: quickViewProduct.price };
+        setCartItems(prev => [...prev, item]);
+        cartService.addToCart(user.uid, item);
       }
       setQuickViewOpen(false);
       setCartDialogOpen(true);
@@ -289,7 +311,7 @@ function SearchResultsContent() {
 
       {/* Main Scroll */}
       <div className="main-scroll search-scroll" id="mainScroll">
-        <SearchHeader initialQuery={query} onBack={handleBack} onSearch={handleSearch} />
+        <SearchHeader initialQuery={query} onBack={handleBack} onSearch={handleSearch} onChange={setQuery} />
         <FilterSortRow filterCount={filterCount} resultCount={`${matchedProducts.length} results`} onFilterClick={() => setFilterOpen(true)} onSortClick={() => setSortOpen(true)} />
         <ActiveFilters filters={activeFilterLabels} onRemove={handleRemoveFilter} onClearAll={handleClearFilters} />
 

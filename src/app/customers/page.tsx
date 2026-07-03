@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import './customers.css';
 import AuthGuard from '@/components/AuthGuard';
+import { hapticsImpact } from '@/lib/capacitor';
 import { customerService } from '@/lib/db';
 import { sendMessage } from '@/lib/evolution';
 import { formatPhoneNumber } from '@/utils/phoneUtils';
@@ -158,7 +159,8 @@ export default function CustomersPage() {
   // Handlers
   const handleClearSearch = () => setSearchQuery('');
 
-  const handleCustomerClick = useCallback((id: string) => {
+  const handleCustomerClick = useCallback(async (id: string) => {
+    await hapticsImpact('light');
     const c = customers.find((x) => x.id === id);
     if (c) {
       setSelectedCustomer(c);
@@ -243,7 +245,8 @@ export default function CustomersPage() {
     setCurrentSegment(segment);
   }, []);
 
-  const handleAlphabetClick = useCallback((letter: string) => {
+  const handleAlphabetClick = useCallback(async (letter: string) => {
+    await hapticsImpact('light');
     const sections = document.querySelectorAll('.section-letter');
     for (const s of sections) {
       if (s.textContent === letter) {
@@ -259,7 +262,7 @@ export default function CustomersPage() {
   }, []);
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
     <div className="app-container">
       {/* Background */}
       <div className="bg-mesh"></div>

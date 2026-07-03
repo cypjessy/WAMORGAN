@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { productService } from '@/lib/db';
+import { productService, cartService } from '@/lib/db';
+import { useAuth } from '@/context/AuthContext';
 import ClientBottomNav from '../components/ClientBottomNav';
 import ProductViewSheet from '../components/ProductViewSheet';
 
@@ -18,6 +19,7 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
 
 export default function FlashDealsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,16 +60,11 @@ export default function FlashDealsPage() {
   const [cartLoaded, setCartLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('wamorgan_cart');
-      if (saved) setCartItems(JSON.parse(saved));
-    } catch {}
-    setCartLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (cartLoaded) localStorage.setItem('wamorgan_cart', JSON.stringify(cartItems));
-  }, [cartItems, cartLoaded]);
+    if (!user) { setCartLoaded(true); return; }
+    cartService.getCart(user.uid).then(items => {
+      setCartItems(items.map((i: any) => ({ productId: i.productId, image: i.image, name: i.name, price: i.price })));
+    }).catch(() => {}).finally(() => setCartLoaded(true));
+  }, [user]);
 
   // Wishlist (localStorage)
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
@@ -94,7 +91,9 @@ export default function FlashDealsPage() {
 
   const handleAddToCart = () => {
     if (quickViewProduct) {
-      setCartItems(prev => [...prev, { productId: quickViewProduct.id, image: quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '', name: quickViewProduct.name, price: quickViewProduct.price }]);
+      const item = { productId: quickViewProduct.id, image: quickViewProduct.images?.[0] || quickViewProduct.imageUrl || '', name: quickViewProduct.name, price: quickViewProduct.price };
+      setCartItems(prev => [...prev, item]);
+      if (user) cartService.addToCart(user.uid, item);
     }
     setQuickViewOpen(false);
   };

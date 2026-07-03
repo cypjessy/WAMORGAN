@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import '../client.css';
 import { useAuth } from '@/context/AuthContext';
-import { orderService, wishlistService, productService } from '@/lib/db';
+import { hapticsImpact, nativeShare } from '@/lib/capacitor';
+import { orderService, wishlistService, productService, cartService, cancellationRequestService } from '@/lib/db';
 import type { Order, Product } from '@/lib/db';
 
 import TabBar from './components/TabBar';
@@ -193,6 +194,12 @@ export default function OrdersListPage() {
   const [reorderDialogOpen, setReorderDialogOpen] = useState(false);
   const [clearWishDialogOpen, setClearWishDialogOpen] = useState(false);
 
+  // ── Filter state ──
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterDateRange, setFilterDateRange] = useState('All Time');
+  const [filterMinPrice, setFilterMinPrice] = useState('');
+  const [filterMaxPrice, setFilterMaxPrice] = useState('');
+
   // Snackbar
   const [snackbar, setSnackbar] = useState({ message: '', type: 'success' as 'success' | 'error', visible: false });
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -204,13 +211,12 @@ export default function OrdersListPage() {
 
   // Fetch orders from Firestore
   useEffect(() => {
+    if (!user) { setOrdersLoading(false); return; }
     const load = async () => {
       setOrdersLoading(true);
       setOrdersError(null);
       try {
-        const data = user
-          ? await orderService.getOrders(undefined, { customerId: user.uid })
-          : await orderService.getOrders();
+        const data = await orderService.getOrders(undefined, { customerId: user.uid });
         setFireOrders(data);
       } catch (e) {
         console.error('Failed to load orders', e);
@@ -270,13 +276,60 @@ export default function OrdersListPage() {
   const filteredOrders = useMemo(() => {
     const allowed = STATUS_FILTER_MAP[orderFilter] || STATUS_FILTER_MAP.all;
     let list = displayOrders.filter(o => allowed.includes(o.status));
+
+    // Apply additional filters from FilterSheet
+    if (filterStatuses.length > 0) {
+      const statusLower = filterStatuses.map(s => s.toLowerCase());
+      list = list.filter(o => statusLower.includes(o.status));
+    }
+    const minP = parseFloat(filterMinPrice);
+    const maxP = parseFloat(filterMaxPrice);
+    if (!isNaN(minP)) {
+      list = list.filter(o => parseFloat(o.price.replace(/[KSh,\s]/g, '')) >= minP);
+    }
+    if (!isNaN(maxP)) {
+      list = list.filter(o => parseFloat(o.price.replace(/[KSh,\s]/g, '')) <= maxP);
+    }
+    if (filterDateRange !== 'All Time') {
+      const now = Date.now();
+      const msMap: Record<string, number> = {
+        'Last 7 Days': 7 * 86400000,
+        'Last 30 Days': 30 * 86400000,
+        'Last 3 Months': 90 * 86400000,
+      };
+      const ms = msMap[filterDateRange];
+      if (ms) {
+        list = list.filter(o => {
+          const raw = fireOrders.find(fo => fo.id === o.id);
+          if (!raw?.createdAt) return true;
+          const d = raw.createdAt.toDate ? raw.createdAt.toDate() : new Date(raw.createdAt);
+          return now - d.getTime() <= ms;
+        });
+      }
+    }
+
     switch (sortBy) {
-      case 'price-high': list.sort((a, b) => parseFloat(b.price.replace(/[$,]/g, '')) - parseFloat(a.price.replace(/[$,]/g, ''))); break;
-      case 'price-low': list.sort((a, b) => parseFloat(a.price.replace(/[$,]/g, '')) - parseFloat(b.price.replace(/[$,]/g, ''))); break;
+      case 'recent':
+        list.sort((a, b) => {
+          const ra = fireOrders.find(fo => fo.id === a.id);
+          const rb = fireOrders.find(fo => fo.id === b.id);
+          const ta = ra?.createdAt?.toDate?.()?.getTime() || new Date(ra?.createdAt || 0).getTime();
+          const tb = rb?.createdAt?.toDate?.()?.getTime() || new Date(rb?.createdAt || 0).getTime();
+          return tb - ta;
+        });
+        break;
+      case 'price-high': list.sort((a, b) => parseFloat(b.price.replace(/[^0-9.]/g, '')) - parseFloat(a.price.replace(/[^0-9.]/g, ''))); break;
+      case 'price-low': list.sort((a, b) => parseFloat(a.price.replace(/[^0-9.]/g, '')) - parseFloat(b.price.replace(/[^0-9.]/g, ''))); break;
+      case 'total-high': list.sort((a, b) => {
+        const ra = fireOrders.find(fo => fo.id === a.id);
+        const rb = fireOrders.find(fo => fo.id === b.id);
+        return (rb?.total || 0) - (ra?.total || 0);
+      });
+        break;
       default: break;
     }
     return list;
-  }, [displayOrders, orderFilter, sortBy]);
+  }, [displayOrders, orderFilter, sortBy, filterStatuses, filterDateRange, filterMinPrice, filterMaxPrice, fireOrders]);
 
   // Dynamic wishlist tabs
   const wishlistTabs = useMemo(() => {
@@ -306,7 +359,8 @@ export default function OrdersListPage() {
     setActivePage(page);
   };
 
-  const handleOrderClick = (order: OrderData) => {
+  const handleOrderClick = async (order: OrderData) => {
+    await hapticsImpact('light');
     const raw = fireOrders.find(o => o.id === order.id);
     if (raw) {
       setSelectedOrder(raw);
@@ -314,26 +368,63 @@ export default function OrdersListPage() {
     }
   };
 
-  const handleDownloadInvoice = () => {
-    showToast('Invoice downloaded', 'success');
+  const handleDownloadInvoice = async () => {
+    if (!selectedOrder) return;
+    await hapticsImpact('light');
+    const link = selectedOrder.id;
+    window.open(`/api/invoice/${link}`, '_blank');
+    showToast('Invoice opened', 'success');
+    await nativeShare({ title: 'Invoice', text: `Order ${selectedOrder.orderNumber || selectedOrder.id}` });
   };
 
   const handleReorder = () => {
     setReorderDialogOpen(true);
   };
 
-  const confirmReorder = () => {
+  const confirmReorder = async () => {
     setReorderDialogOpen(false);
-    showToast('Items added to cart', 'success');
+    if (!user || !selectedOrder?.items) return;
+    try {
+      for (const item of selectedOrder.items) {
+        await cartService.addToCart(user.uid, {
+          productId: item.productId,
+          name: item.name,
+          price: item.price,
+          image: item.imageUrl || '',
+        });
+      }
+      showToast(`${selectedOrder.items.length} item(s) added to cart`, 'success');
+    } catch {
+      showToast('Failed to reorder items', 'error');
+    }
   };
 
   const handleCancelOrder = () => {
     setCancelDialogOpen(true);
   };
 
-  const confirmCancelOrder = () => {
+  const confirmCancelOrder = async () => {
     setCancelDialogOpen(false);
-    showToast('Order cancelled', 'success');
+    if (!selectedOrder?.id) { showToast('Order not found', 'error'); return; }
+    try {
+      await orderService.updateOrder(selectedOrder.id, { status: 'cancelled' });
+      // Create a cancellation request record
+      await cancellationRequestService.create({
+        orderId: selectedOrder.id,
+        orderNumber: selectedOrder.orderNumber || selectedOrder.id,
+        customerPhone: selectedOrder.customerPhone || '',
+        customerName: selectedOrder.customerName || 'Customer',
+        reason: 'Cancelled by customer',
+        status: 'approved',
+        requestedAt: new Date().toISOString(),
+      });
+      setFireOrders(prev => prev.map(o =>
+        o.id === selectedOrder.id ? { ...o, status: 'cancelled' as const } : o
+      ));
+      showToast('Order cancelled successfully', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to cancel order', 'error');
+    }
   };
 
   const handleWishlistRemove = async (item: WishlistData) => {
@@ -536,10 +627,18 @@ export default function OrdersListPage() {
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
         onApply={(filters) => {
+          setFilterStatuses(filters.status);
+          setFilterDateRange(filters.dateRange);
+          setFilterMinPrice(filters.minPrice);
+          setFilterMaxPrice(filters.maxPrice);
           setFilterOpen(false);
           showToast('Filters applied', 'success');
         }}
         onReset={() => {
+          setFilterStatuses([]);
+          setFilterDateRange('All Time');
+          setFilterMinPrice('');
+          setFilterMaxPrice('');
           setFilterOpen(false);
           showToast('Filters reset', 'success');
         }}

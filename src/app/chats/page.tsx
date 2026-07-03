@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
+import { hapticsImpact, takePhoto } from '@/lib/capacitor';
 import { conversationService, supportTicketService, orderService } from '@/lib/db';
 import type { Message, SupportTicket, SupportMessage, Order } from '@/lib/db';
 import BottomNav from '../components/BottomNav';
@@ -354,7 +355,8 @@ export default function ChatsPage() {
   }, [contactInfoOpen, activeConv, channel]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
-  const openChat = useCallback((id: string) => {
+  const openChat = useCallback(async (id: string) => {
+    await hapticsImpact('light');
     setActiveChatId(id);
     setInChatView(true);
     // Mark unread as 0 locally + persist to Firestore
@@ -483,8 +485,20 @@ export default function ChatsPage() {
     setDeleteMsgTarget(null);
   }, [deleteMsgTarget, channel, activeMessages, showToast]);
 
-  const handleAttachAction = useCallback((action: string) => {
+  const handleAttachAction = useCallback(async (action: string) => {
     setAttachOpen(false);
+    await hapticsImpact('light');
+    if (action === 'camera') {
+      const photo = await takePhoto();
+      if (photo) showToast('Photo captured', 'success');
+      return;
+    }
+    if (action === 'gallery') {
+      const { pickFromGallery } = await import('@/lib/capacitor');
+      const image = await pickFromGallery();
+      if (image) showToast('Image selected', 'success');
+      return;
+    }
     showToast(action.charAt(0).toUpperCase() + action.slice(1) + ' opened', 'success');
   }, [showToast]);
 
@@ -498,7 +512,7 @@ export default function ChatsPage() {
   const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : 'In-App';
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="admin">
     <div className="app-container">
       <div className="bg-mesh"></div>
       <div className="noise-overlay"></div>
@@ -544,7 +558,7 @@ export default function ChatsPage() {
               name={activeConv?.name || ''}
               online={activeConv?.online || false}
               onBack={handleBackToList}
-              onCall={() => showToast('Voice call', 'success')}
+              onCall={() => showToast('Voice call coming soon', 'info')}
               onInfo={() => setContactInfoOpen(true)}
             />
 
