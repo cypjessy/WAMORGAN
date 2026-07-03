@@ -500,7 +500,7 @@ export default function CartCheckoutPage() {
       )}
 
       {/* Bottom Nav */}
-      <ClientBottomNav activeIndex={3} />
+      <ClientBottomNav activeIndex={2} />
 
       <RemoveItemSheet open={removeSheetOpen} onClose={() => setRemoveSheetOpen(false)} onConfirm={handleConfirmRemove} item={removeTarget} />
       <AddAddressSheet open={addAddressOpen} onClose={() => setAddAddressOpen(false)} onSave={handleAddAddressSave} />

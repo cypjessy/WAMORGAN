@@ -73,7 +73,7 @@ export default function ProductScroll({ onProductClick, onWishClick, wishlist }:
             <h4>{item.name}</h4>
             <div className="prod-price">
               {item.price}
-              {item.oldPrice && <span className="old">{item.oldPrice}</span>}
+              {item.oldPrice && <span className="old" style={{ color: 'var(--error)', textDecoration: 'line-through' }}>{item.oldPrice}</span>}
             </div>
             <div className="prod-rating">
               <i className="fas fa-star"></i> {item.rating} <span>({item.reviews})</span>

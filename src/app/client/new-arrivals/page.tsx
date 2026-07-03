@@ -147,7 +147,7 @@ export default function NewArrivalsPage() {
                     <div style={{ padding: 12 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
                       <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-primary)' }}>
-                        ${item.price?.toFixed(0) || '0'}
+                        KSh {item.price?.toFixed(0) || '0'}
                       </div>
                     </div>
                   </div>

@@ -282,14 +282,8 @@ export default function ClientShopPage() {
         <ClientHeader cartCount={cartCount} notifCount={notifCount} onNotifClick={() => setNotifOpen(true)} onCartClick={() => router.push('/client/cart')} />
         <SearchSection onSearch={(query) => { searchAnalyticsService.recordSearch(query); router.push(`/client/search?q=${encodeURIComponent(query)}`); }} />
         <QuickTags onTagClick={(label) => router.push(`/client/search?q=${encodeURIComponent(label)}`)} />
-        <HeroCarousel onCtaClick={(label) => router.push('/client/search?deals=summer-sale')} />
-        
-        <div className="section-header">
-          <span className="section-title"><i className="fas fa-grid-2"></i> Categories</span>
-          <span className="section-action" onClick={() => router.push('/client/search')}>See All <i className="fas fa-arrow-right" style={{ fontSize: 10 }}></i></span>
-        </div>
-        <CategoryGrid onCategoryClick={(label) => router.push(`/client/search?q=${encodeURIComponent(label)}`)} />
-        
+
+        {/* Flash timer → Flash deals → Categories → Products below */}
         <FlashBanner onClick={() => router.push('/client/flash-deals')} />
         
         <div className="section-header">
@@ -299,15 +293,23 @@ export default function ClientShopPage() {
         <ProductScroll onProductClick={(p) => handleProductClick(p)} />
         
         <div className="section-header">
-          <span className="section-title"><i className="fas fa-sparkles"></i> New Arrivals</span>
-          <span className="section-action" onClick={() => router.push('/client/new-arrivals')}>View All</span>
+          <span className="section-title"><i className="fas fa-grid-2"></i> Categories</span>
+          <span className="section-action" onClick={() => router.push('/client/search')}>See All <i className="fas fa-arrow-right" style={{ fontSize: 10 }}></i></span>
         </div>
-        <ProductGrid products={newArrivals} onProductClick={(p, idx) => handleProductClick(p, idx)} onWishClick={handleWishClick} wishlist={wishlist} />
+        <CategoryGrid onCategoryClick={(label) => router.push(`/client/search?q=${encodeURIComponent(label)}`)} />
         
         <div className="section-header">
           <span className="section-title"><i className="fas fa-tag"></i> Popular Categories</span>
         </div>
         <BrandStrip onBrandClick={(label) => { setActiveFilter(label); setFilterVisibleCount(10); }} />
+        
+        <HeroCarousel onCtaClick={(label) => router.push('/client/search?deals=summer-sale')} />
+        
+        <div className="section-header">
+          <span className="section-title"><i className="fas fa-sparkles"></i> New Arrivals</span>
+          <span className="section-action" onClick={() => router.push('/client/new-arrivals')}>View All</span>
+        </div>
+        <ProductGrid products={newArrivals} onProductClick={(p, idx) => handleProductClick(p, idx)} onWishClick={handleWishClick} wishlist={wishlist} />
         
         {/* Filtered Products */}
         {activeFilter && (

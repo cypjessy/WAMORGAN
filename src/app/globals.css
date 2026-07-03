@@ -1089,6 +1089,7 @@ html, body {
     padding: 0 0 calc(8px + env(safe-area-inset-bottom, 0px));
     background: rgba(12,12,20,0.96);
     border-top: 1px solid rgba(255,255,255,0.06);
+    z-index: 1000;
 }
 
 /* Curved cutout for the FAB */
@@ -1134,6 +1135,7 @@ html, body {
     padding: 0 0 calc(8px + env(safe-area-inset-bottom, 0px));
     background: rgba(12,12,20,0.96);
     border-top: 1px solid rgba(255,255,255,0.06);
+    z-index: 1000;
 }
 
 /* Curved cutout for the FAB */

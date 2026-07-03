@@ -167,7 +167,7 @@ export default function FlashDealsPage() {
                   <h4 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
                   <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-primary)' }}>
                     {item.price}
-                    {item.oldPrice && <span style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'line-through', fontWeight: 500, marginLeft: 4 }}>{item.oldPrice}</span>}
+                    {item.oldPrice && <span style={{ fontSize: 12, color: 'var(--error)', textDecoration: 'line-through', fontWeight: 600, marginLeft: 4 }}>{item.oldPrice}</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--warning)', fontWeight: 600, marginTop: 4 }}>
                     <i className="fas fa-star"></i> {item.rating}
